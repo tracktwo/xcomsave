@@ -1,7 +1,6 @@
 #include <string>
 #include <iostream>
 #include "minilzo.h"
-#include "platform.h"
 #include <stdio.h>
 
 void usage(const std::string& name)
