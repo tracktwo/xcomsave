@@ -4,29 +4,44 @@
 #include <stdint.h>
 #include <string>
 
-struct SaveHeader
+struct XComSaveHeader
 {
 	uint32_t version;
 	uint32_t uncompressedSize;
 	uint32_t gameNumber;
 	uint32_t saveNumber;
-	std::string saveDescription;
-	std::string time;
-	std::string mapCommand;
+	const char* saveDescription;
+	const char* time;
+	const char* mapCommand;
 	bool tacticalSave;
 	bool ironman;
 	bool autoSave;
-	std::string dlcString;
-	std::string language;
+	const char* dlcString;
+	const char* language;
 	uint32_t crc;
 };
 
 struct XComSave
 {
-	SaveHeader header;
+	XComSaveHeader header;
 };
 
 
-XComSave XSReadSave(const unsigned char *, long);
+class XComReader
+{
+public:
+	XComReader(const unsigned char *ptr, long len) :
+		ptr_(ptr), start_(ptr), length_(len) {}
 
+	XComSave getSaveData();
+private:
+
+	uint32_t readInt32();
+	const char* readString();
+	bool readBool();
+	XComSaveHeader readHeader();
+	const unsigned char *ptr_;
+	const unsigned char *start_;
+	long length_;
+};
 #endif //XCOM_H

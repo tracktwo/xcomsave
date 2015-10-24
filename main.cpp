@@ -52,5 +52,6 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
-	XComSave save = XSReadSave(fileBuf, fileLen);
+	XComReader reader{ fileBuf, fileLen };
+	XComSave save = reader.getSaveData();
 }
