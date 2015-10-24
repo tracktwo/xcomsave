@@ -1,7 +1,7 @@
 #include <string>
 #include <iostream>
 #include <stdio.h>
-#include "xcom.h"
+#include "xcomreader.h"
 
 void usage(const std::string& name)
 {

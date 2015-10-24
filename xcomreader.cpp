@@ -1,5 +1,5 @@
 #include "minilzo.h"
-#include "xcom.h"
+#include "xcomreader.h"
 #include <string>
 
 uint32_t XComReader::readInt32()
