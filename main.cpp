@@ -1,7 +1,7 @@
 #include <string>
 #include <iostream>
-#include "minilzo.h"
 #include <stdio.h>
+#include "xcom.h"
 
 void usage(const std::string& name)
 {
@@ -52,26 +52,5 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
-	const unsigned char *p = fileBuf + 1024;
-	FILE *outFile = fopen("output.dat", "wb");
-	do
-	{
-		unsigned long uncompressedSize = *(reinterpret_cast<const unsigned long*>(p + 4));
-		unsigned long compressedSize = *(reinterpret_cast<const unsigned long*>(p + 8));
-		printf("Next chunk size: %d (%d) bytes at offset 0x%08x\n", uncompressedSize, compressedSize, (p - fileBuf));
-
-		unsigned char *data = new unsigned char[uncompressedSize];
-		unsigned long decompSize = uncompressedSize;
-		if (lzo1x_decompress(p + 24, compressedSize, data, &decompSize, nullptr) != LZO_E_OK) {
-			fprintf(stderr, "LZO decompress failed\n");
-		}
-
-		fwrite(data, 1, decompSize, outFile);
-		if (uncompressedSize != decompSize) {
-			fprintf(stderr, "Expected to decompress %d bytes but only got %d\n", uncompressedSize, decompSize);
-		}
-		p += compressedSize;
-		p += 24;
-	} while ((p - fileBuf) < fileLen);
-	fclose(outFile);
+	XComSave save = XSReadSave(fileBuf, fileLen);
 }
