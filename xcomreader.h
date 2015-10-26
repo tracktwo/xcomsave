@@ -13,12 +13,18 @@ public:
 		ptr_(ptr), start_(ptr), length_(len) {}
 
 	XComSave getSaveData();
-private:
 
+private:
 	uint32_t readInt32();
 	const char* readString();
 	bool readBool();
 	XComSaveHeader readHeader();
+	XComActorTable readActorTable();
+	XComCheckpointTable readCheckpointTable();
+	int32_t getUncompressedSize();
+	void getUncompressedData(unsigned char *);
+
+private:
 	const unsigned char *ptr_;
 	const unsigned char *start_;
 	long length_;
