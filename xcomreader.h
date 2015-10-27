@@ -16,11 +16,15 @@ public:
 
 private:
 	uint32_t readInt32();
+	float readFloat();
 	const char* readString();
 	bool readBool();
 	XComSaveHeader readHeader();
 	XComActorTable readActorTable();
 	XComCheckpointTable readCheckpointTable();
+	std::vector<std::unique_ptr<XComProperty>> readProperties(uint32_t dataLen);
+	XComActorTemplateTable readActorTemplateTable();
+	XComNameTable readNameTable();
 	int32_t getUncompressedSize();
 	void getUncompressedData(unsigned char *);
 

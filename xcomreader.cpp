@@ -1,12 +1,22 @@
 #include "minilzo.h"
 #include "xcomreader.h"
+#include "util.h"
 #include <string>
+#include <memory>
+#include <cassert>
 
 uint32_t XComReader::readInt32()
 {
 	uint32_t v = *(reinterpret_cast<const uint32_t*>(ptr_));
 	ptr_ += 4;
 	return v;
+}
+
+float XComReader::readFloat()
+{
+	float f = *(reinterpret_cast<const float*>(ptr_));
+	ptr_ += 4;
+	return f;
 }
 
 bool XComReader::readBool()
@@ -17,6 +27,9 @@ bool XComReader::readBool()
 const char* XComReader::readString()
 {
 	uint32_t len = readInt32();
+	if (len == 0) {
+		return "";
+	}
 	const char *str = reinterpret_cast<const char *>(ptr_);
 	size_t actualLen = strlen(str);
 	
@@ -68,6 +81,129 @@ XComActorTable XComReader::readActorTable()
 	return actorTable;
 }
 
+std::vector<std::unique_ptr<XComProperty>> XComReader::readProperties(uint32_t dataLen)
+{
+	const unsigned char *endpos = ptr_ + dataLen;
+	std::vector<std::unique_ptr<XComProperty>> properties;
+	// 
+	while (ptr_ < endpos)
+	{
+		std::string name = readString();
+		uint32_t unknown1 = readInt32();
+		if (unknown1 != 0) {
+			DBG("Read non-zero prop unknown value: %x\n", unknown1);
+		}
+
+		if (name.compare("None") == 0) {
+			// All done.
+			if (ptr_ < endpos)
+			{
+				uint32_t padSize = endpos - ptr_;
+				//unsigned char *padding = new unsigned char[padSize];
+				for (unsigned int i = 0; i < padSize; ++i) {
+					//padding[i] = *ptr_++;
+					if (*ptr_++ != 0) {
+						DBG("Found non-zero padding byte at %x\n", (ptr_ - 1) - start_);
+					}
+				}
+			}
+			break;
+		}
+		std::string propType = readString();
+		uint32_t unknown2 = readInt32();
+		if (unknown2 != 0) {
+			DBG("Read non-zero prop unknown2 value: %x\n", unknown2);
+		}
+		uint32_t propSize = readInt32();
+		uint32_t unknown3 = readInt32();
+		if (unknown3 != 0) {
+			DBG("Read non-zero prop unknown3 value: %x\n", unknown3);
+		}
+
+		if (propType.compare("ObjectProperty") == 0) {
+			unsigned char *data = new unsigned char[propSize];
+			memcpy(data, ptr_, propSize);
+			ptr_ += propSize;
+			auto prop = std::make_unique<XComObjectProperty>(name, data, dataLen);
+			properties.push_back(std::move(prop));
+		}
+		else if (propType.compare("IntProperty") == 0) {
+			assert(propSize == 4);
+			uint32_t intVal = readInt32();
+			auto prop = std::make_unique<XComIntProperty>(name, intVal);
+			properties.push_back(std::move(prop));
+		}
+		else if (propType.compare("ByteProperty") == 0) {
+			std::string enumType = readString();
+			uint32_t innerUnknown = readInt32();
+			if (innerUnknown != 0) {
+				DBG("Read non-zero prop unknown3 value: %x\n", innerUnknown);
+			}
+			std::string enumVal = readString();
+			uint32_t innerUnknown2 = readInt32();
+			if (innerUnknown2 != 0) {
+				DBG("Read non-zero prop unknown3 value: %x\n", innerUnknown2);
+			}
+			auto prop = std::make_unique<XComByteProperty>(name, enumType, enumVal);
+			properties.push_back(std::move(prop));
+		}
+		else if (propType.compare("BoolProperty") == 0) {
+			assert(propSize == 0);
+			bool boolVal = *ptr_++ != 0;
+			auto prop = std::make_unique<XComBoolProperty>(name, boolVal);
+			properties.push_back(std::move(prop));
+		}
+		else if (propType.compare("ArrayProperty") == 0) {
+			uint32_t arrayBound = readInt32();
+			unsigned char *arrayData = nullptr;
+			if (propSize > 4) {
+				arrayData = new unsigned char[propSize - 4];
+				memcpy(arrayData, ptr_, propSize - 4);
+				ptr_ += (propSize - 4);
+			}
+			auto prop = std::make_unique<XComArrayProperty>(name, arrayData, arrayBound, propSize == 4 ? 0 : (propSize - 4)/arrayBound);
+			properties.push_back(std::move(prop));
+		}
+		else if (propType.compare("FloatProperty") == 0) {
+			float f = readFloat();
+			auto prop = std::make_unique<XComFloatProperty>(name, f);
+			properties.push_back(std::move(prop));
+		}
+		else if (propType.compare("StructProperty") == 0) {
+			std::string structName = readString();
+			uint32_t innerUnknown = readInt32();
+			if (innerUnknown != 0) {
+				DBG("Read non-zero prop unknown3 value: %x\n", innerUnknown);
+			}
+			// Special case certain structs
+			if (structName.compare("Vector2D") == 0) {
+				assert(propSize == 8);
+				unsigned char* nativeData = new unsigned char[8];
+				memcpy(nativeData, ptr_, 8);
+				ptr_ += 8;
+				auto prop = std::make_unique<XComStructProperty>(name, structName, nativeData, 8);
+				properties.push_back(std::move(prop));
+			}
+			else {
+				std::vector<std::unique_ptr<XComProperty>> structProps = readProperties(propSize);
+				auto prop = std::make_unique<XComStructProperty>(name, structName, std::move(structProps));
+				properties.push_back(std::move(prop));
+			}
+		}
+		else if (propType.compare("StrProperty") == 0) {
+			std::string str = readString();
+			auto prop = std::make_unique<XComStrProperty>(name, str);
+			properties.push_back(std::move(prop));
+		}
+		else
+		{
+			DBG("ohoh, unknown type\n");
+		}
+	}
+
+	return properties;
+}
+
 XComCheckpointTable XComReader::readCheckpointTable()
 {
 	XComCheckpointTable checkpointTable;
@@ -81,17 +217,58 @@ XComCheckpointTable XComReader::readCheckpointTable()
 		memcpy(chk->unknown1, ptr_, 24);
 		ptr_ += 24;
 		chk->className = strdup(readString());
-		chk->dataLen = readInt32();
-		chk->data = new unsigned char[chk->dataLen];
-		memcpy(chk->data, ptr_, chk->dataLen);
-		ptr_ += chk->dataLen;
-		if (readInt32() != 0xffffffff) {
-			fprintf(stderr, "Error: Checkpoint entry %d doesn't end with -1 at offset 0x%08x\n", i, ptr_ - start_);
-			return{};
-		}
+		uint32_t propLen = readInt32();
+		chk->properties = readProperties(propLen);
+		chk->templateIndex = readInt32();
 	}
 
 	return checkpointTable;
+}
+
+XComActorTemplateTable XComReader::readActorTemplateTable()
+{
+	XComActorTemplateTable templateTable;
+	templateTable.templateCount = readInt32();
+	if (templateTable.templateCount == 0)
+	{
+		return templateTable;
+	}
+	templateTable.templates = new XComActorTemplate[templateTable.templateCount];
+
+	for (unsigned int i = 0; i < templateTable.templateCount; ++i) {
+		XComActorTemplate *tmpl = &templateTable.templates[i];
+		tmpl->actorClassPath = strdup(readString());
+		memcpy(tmpl->loadParams, ptr_, 64);
+		ptr_ += 64;
+		tmpl->archetypePath = strdup(readString());
+	}
+
+	return templateTable;
+}
+
+XComNameTable XComReader::readNameTable()
+{
+	static unsigned char allZeros[8] = { 0 };
+	XComNameTable nameTable;
+	nameTable.nameCount = readInt32();
+	nameTable.names = new XComNameEntry[nameTable.nameCount];
+
+	for (unsigned int i = 0; i < nameTable.nameCount; ++i) {
+		XComNameEntry *entry = &nameTable.names[i];
+		entry->name = readString();
+		memcpy(entry->zeros, ptr_, 8);
+		ptr_ += 8;
+		if (memcmp(entry->zeros, allZeros, 8) != 0) {
+			fprintf(stderr, "Error: Expected all zeros in name table entry");
+			return{};
+		}
+		entry->dataLen = readInt32();
+		entry->data = new unsigned char[entry->dataLen];
+		memcpy(entry->data, ptr_, entry->dataLen);
+		ptr_ += entry->dataLen;
+	}
+
+	return nameTable;
 }
 
 int32_t XComReader::getUncompressedSize()
@@ -147,6 +324,12 @@ void XComReader::getUncompressedData(unsigned char *buf)
 			return;
 		}
 
+		if (decompSize != uncompressedSize)
+		{
+			fprintf(stderr, "Failed to decompress chunk!");
+			return;
+		}
+
 		// Skip to next chunk - 24 bytes of this chunk header + compressedSize bytes later.
 		p += (compressedSize + 24);
 		outp += uncompressedSize;
@@ -174,24 +357,41 @@ XComSave XComReader::getSaveData()
 	// We're now done with the compressed file. Swap over to the uncompressed data
 	start_ = ptr_ = uncompressedData;
 	length_ = uncompressedSize;
-	save.actorTable = readActorTable();
-	printf("Finished reading actor table at offset %x\n", ptr_ - start_);
-	save.unknownInt1 = readInt32();
-	save.unknownStr1 = readString();
-	const char *none = readString();
-	if (strcmp(none, "None") != 0) {
-		fprintf(stderr, "Error locating 'None' after actor table.\n");
-		return{};
-	}
-	save.unknownInt2 = readInt32();
-	save.checkpointTable = readCheckpointTable();
-	printf("Finished reading checkpoint table at offset %x\n", ptr_ - start_);
-
-	save.unknownInt3 = readInt32();
-	save.unknownStr2 = readString();
-	save.actorTable2 = readActorTable();
-	printf("Finished reading second actor table at offset %x\n", ptr_ - start_);
 	fwrite(uncompressedData, 1, uncompressedSize, outFile);
 	fclose(outFile);
+	save.actorTable = readActorTable();
+	DBG("Finished reading actor table at offset %x\n", ptr_ - start_);
+	// Jump back to here after each chunk
+	do {
+		save.unknownInt1 = readInt32();
+		save.unknownStr1 = readString();
+		const char *none = readString();
+		if (strcmp(none, "None") != 0) {
+			fprintf(stderr, "Error locating 'None' after actor table.\n");
+			return{};
+		}
+		save.unknownInt2 = readInt32();
+		save.checkpointTable = readCheckpointTable();
+		DBG("Finished reading checkpoint table at offset %x\n", ptr_ - start_);
+
+		save.unknownInt3 = readInt32();
+		if (save.unknownInt3 > 0) { // only seems to be present for tactical saves?
+			save.nameTable = readNameTable();
+			DBG("Finished reading name table at offset %x\n", ptr_ - start_);
+		}
+		save.unknownStr2 = readString();
+		save.actorTable2 = readActorTable();
+		DBG("Finished reading second actor table at offset %x\n", ptr_ - start_);
+
+		save.unknownInt4 = readInt32();
+
+		save.actorTemplateTable = readActorTemplateTable(); // (only seems to be present for tactical saves?)
+		DBG("Finished reading actor template table at offset %x\n", ptr_ - start_);
+
+		readString(); //unknown (game name)
+		readString(); //unknown (map name)
+		readInt32(); //unknown  (checksum?)
+	}
+	while ((ptr_ - start_ < length_));
 	return save;
 }
