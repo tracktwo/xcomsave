@@ -7,4 +7,7 @@
 #define DBG(msg, ...)
 #endif
 
+unsigned int crc32b(const unsigned char *message, long len);
+
+
 #endif // UTIL_H

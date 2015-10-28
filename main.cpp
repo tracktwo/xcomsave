@@ -2,6 +2,7 @@
 #include <iostream>
 #include <stdio.h>
 #include "xcomreader.h"
+#include "jsonwriter.h"
 
 void usage(const std::string& name)
 {
@@ -54,4 +55,6 @@ int main(int argc, char *argv[])
 
 	XComReader reader{ fileBuf, fileLen };
 	XComSave save = reader.getSaveData();
+	Json jsonsave = buildJson(save);
+	std::cout << jsonsave.dump();
 }

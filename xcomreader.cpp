@@ -71,20 +71,21 @@ XComSaveHeader XComReader::readHeader()
 XComActorTable XComReader::readActorTable()
 {
 	XComActorTable actorTable;
-	actorTable.actorCount = readInt32();
-	actorTable.actors = new XComActor[actorTable.actorCount];
+	uint32_t actorCount = readInt32();
 
-	for (unsigned int i = 0; i < actorTable.actorCount; ++i) {
-		actorTable.actors[i].actorName = strdup(readString());
-		actorTable.actors[i].instanceNum = readInt32();
+	for (unsigned int i = 0; i < actorCount; ++i) {
+		std::string name = readString();
+		uint32_t instanceNum = readInt32();
+		actorTable.push_back({name, instanceNum });
 	}
+
 	return actorTable;
 }
 
-std::vector<std::unique_ptr<XComProperty>> XComReader::readProperties(uint32_t dataLen)
+XComPropertyList XComReader::readProperties(uint32_t dataLen)
 {
 	const unsigned char *endpos = ptr_ + dataLen;
-	std::vector<std::unique_ptr<XComProperty>> properties;
+	XComPropertyList properties;
 	// 
 	while (ptr_ < endpos)
 	{
@@ -100,6 +101,7 @@ std::vector<std::unique_ptr<XComProperty>> XComReader::readProperties(uint32_t d
 			{
 				uint32_t padSize = endpos - ptr_;
 				//unsigned char *padding = new unsigned char[padSize];
+				// TODO Record the padding somewhere in the property array
 				for (unsigned int i = 0; i < padSize; ++i) {
 					//padding[i] = *ptr_++;
 					if (*ptr_++ != 0) {
@@ -115,23 +117,19 @@ std::vector<std::unique_ptr<XComProperty>> XComReader::readProperties(uint32_t d
 			DBG("Read non-zero prop unknown2 value: %x\n", unknown2);
 		}
 		uint32_t propSize = readInt32();
-		uint32_t unknown3 = readInt32();
-		if (unknown3 != 0) {
-			DBG("Read non-zero prop unknown3 value: %x\n", unknown3);
-		}
+		uint32_t arrayIdx = readInt32();
 
+		XComPropertyPtr prop;
 		if (propType.compare("ObjectProperty") == 0) {
 			unsigned char *data = new unsigned char[propSize];
 			memcpy(data, ptr_, propSize);
 			ptr_ += propSize;
-			auto prop = std::make_unique<XComObjectProperty>(name, data, dataLen);
-			properties.push_back(std::move(prop));
+			prop = std::make_unique<XComObjectProperty>(name, data, dataLen);
 		}
 		else if (propType.compare("IntProperty") == 0) {
 			assert(propSize == 4);
 			uint32_t intVal = readInt32();
-			auto prop = std::make_unique<XComIntProperty>(name, intVal);
-			properties.push_back(std::move(prop));
+			prop = std::make_unique<XComIntProperty>(name, intVal);
 		}
 		else if (propType.compare("ByteProperty") == 0) {
 			std::string enumType = readString();
@@ -140,18 +138,13 @@ std::vector<std::unique_ptr<XComProperty>> XComReader::readProperties(uint32_t d
 				DBG("Read non-zero prop unknown3 value: %x\n", innerUnknown);
 			}
 			std::string enumVal = readString();
-			uint32_t innerUnknown2 = readInt32();
-			if (innerUnknown2 != 0) {
-				DBG("Read non-zero prop unknown3 value: %x\n", innerUnknown2);
-			}
-			auto prop = std::make_unique<XComByteProperty>(name, enumType, enumVal);
-			properties.push_back(std::move(prop));
+			uint32_t extVal = readInt32();
+			prop = std::make_unique<XComByteProperty>(name, enumType, enumVal, extVal);
 		}
 		else if (propType.compare("BoolProperty") == 0) {
 			assert(propSize == 0);
 			bool boolVal = *ptr_++ != 0;
-			auto prop = std::make_unique<XComBoolProperty>(name, boolVal);
-			properties.push_back(std::move(prop));
+			prop = std::make_unique<XComBoolProperty>(name, boolVal);
 		}
 		else if (propType.compare("ArrayProperty") == 0) {
 			uint32_t arrayBound = readInt32();
@@ -161,13 +154,11 @@ std::vector<std::unique_ptr<XComProperty>> XComReader::readProperties(uint32_t d
 				memcpy(arrayData, ptr_, propSize - 4);
 				ptr_ += (propSize - 4);
 			}
-			auto prop = std::make_unique<XComArrayProperty>(name, arrayData, arrayBound, propSize == 4 ? 0 : (propSize - 4)/arrayBound);
-			properties.push_back(std::move(prop));
+			prop = std::make_unique<XComArrayProperty>(name, arrayData, arrayBound, propSize == 4 ? 0 : (propSize - 4)/arrayBound);
 		}
 		else if (propType.compare("FloatProperty") == 0) {
 			float f = readFloat();
-			auto prop = std::make_unique<XComFloatProperty>(name, f);
-			properties.push_back(std::move(prop));
+			prop = std::make_unique<XComFloatProperty>(name, f);
 		}
 		else if (propType.compare("StructProperty") == 0) {
 			std::string structName = readString();
@@ -181,23 +172,58 @@ std::vector<std::unique_ptr<XComProperty>> XComReader::readProperties(uint32_t d
 				unsigned char* nativeData = new unsigned char[8];
 				memcpy(nativeData, ptr_, 8);
 				ptr_ += 8;
-				auto prop = std::make_unique<XComStructProperty>(name, structName, nativeData, 8);
-				properties.push_back(std::move(prop));
+				prop = std::make_unique<XComStructProperty>(name, structName, nativeData, 8);
+			} 
+			else if (structName.compare("Vector") == 0) {
+				assert(propSize == 12);
+				unsigned char * nativeData = new unsigned char[12];
+				memcpy(nativeData, ptr_, 12);
+				ptr_ += 12;
+				prop = std::make_unique<XComStructProperty>(name, structName, nativeData, 12);
 			}
 			else {
-				std::vector<std::unique_ptr<XComProperty>> structProps = readProperties(propSize);
-				auto prop = std::make_unique<XComStructProperty>(name, structName, std::move(structProps));
-				properties.push_back(std::move(prop));
+				XComPropertyList structProps = readProperties(propSize);
+				prop = std::make_unique<XComStructProperty>(name, structName, std::move(structProps));
 			}
 		}
 		else if (propType.compare("StrProperty") == 0) {
 			std::string str = readString();
-			auto prop = std::make_unique<XComStrProperty>(name, str);
-			properties.push_back(std::move(prop));
+			prop = std::make_unique<XComStrProperty>(name, str);
 		}
 		else
 		{
-			DBG("ohoh, unknown type\n");
+			DBG("uh-oh, unknown type\n");
+		}
+
+		if (prop.get() != nullptr) {
+			if (arrayIdx == 0) {
+				properties.push_back(std::move(prop));
+			}
+			else {
+				if (properties.back()->getName().compare(name) != 0) {
+					DBG("Static array index found but doesn't match last property at offset 0x%x\n", ptr_ - start_);
+				}
+
+				if (properties.back()->getKind() == XComProperty::Kind::StaticArrayProperty) {
+					// We already have a static array. Sanity check the array index and add it
+					assert(arrayIdx == static_cast<XComStaticArrayProperty*>(properties.back().get())->size());
+					static_cast<XComStaticArrayProperty*>(properties.back().get())->addProperty(std::move(prop));
+				}
+				else {
+					// Not yet a static array. This new property should have index 1.
+					assert(arrayIdx == 1);
+
+					// Pop off the old property
+					XComPropertyPtr lastProp = std::move(properties.back());
+					properties.pop_back();
+
+					// And replace it with a new static array
+					std::unique_ptr<XComStaticArrayProperty> staticArrayProp = std::make_unique<XComStaticArrayProperty>(name);
+					staticArrayProp->addProperty(std::move(lastProp));
+					staticArrayProp->addProperty(std::move(prop));
+					properties.push_back(std::move(staticArrayProp));
+				}
+			}
 		}
 	}
 
@@ -341,6 +367,9 @@ XComSave XComReader::getSaveData()
 	XComSave save;
 	const unsigned char *p = ptr_ + 1024;
 	FILE *outFile = fopen("output.dat", "wb");
+	if (outFile == nullptr) {
+		fprintf(stderr, "Failed to open output file: %d", errno);
+	}
 	int chunkCount = 0;
 	int totalCompressed = 0;
 	int totalUncompressed = 0;
