@@ -19,12 +19,12 @@ Json buildJson(const XComSave& save)
 		{ "language", hdr.language }
 	};
 
-	const XComActorTable &at = save.actorTable;
-	Json actorTable = save.actorTable;
 
 	Json jsonSave = Json::object{
 		{ "header", header },
-		{ "actor_table", actorTable }
+		{ "actor_table", save.actorTable },
+		{ "checkpoints", save.checkpoints },
+		
 	};
 
 	return jsonSave;

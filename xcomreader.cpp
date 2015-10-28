@@ -86,7 +86,6 @@ XComPropertyList XComReader::readProperties(uint32_t dataLen)
 {
 	const unsigned char *endpos = ptr_ + dataLen;
 	XComPropertyList properties;
-	// 
 	while (ptr_ < endpos)
 	{
 		std::string name = readString();
@@ -96,19 +95,6 @@ XComPropertyList XComReader::readProperties(uint32_t dataLen)
 		}
 
 		if (name.compare("None") == 0) {
-			// All done.
-			if (ptr_ < endpos)
-			{
-				uint32_t padSize = endpos - ptr_;
-				//unsigned char *padding = new unsigned char[padSize];
-				// TODO Record the padding somewhere in the property array
-				for (unsigned int i = 0; i < padSize; ++i) {
-					//padding[i] = *ptr_++;
-					if (*ptr_++ != 0) {
-						DBG("Found non-zero padding byte at %x\n", (ptr_ - 1) - start_);
-					}
-				}
-			}
 			break;
 		}
 		std::string propType = readString();
@@ -121,10 +107,11 @@ XComPropertyList XComReader::readProperties(uint32_t dataLen)
 
 		XComPropertyPtr prop;
 		if (propType.compare("ObjectProperty") == 0) {
-			unsigned char *data = new unsigned char[propSize];
-			memcpy(data, ptr_, propSize);
-			ptr_ += propSize;
-			prop = std::make_unique<XComObjectProperty>(name, data, dataLen);
+			std::vector<unsigned char> data;
+			for (unsigned int i = 0; i < propSize; ++i) {
+				data.push_back(*ptr_++);
+			}
+			prop = std::make_unique<XComObjectProperty>(name, data);
 		}
 		else if (propType.compare("IntProperty") == 0) {
 			assert(propSize == 4);
@@ -233,19 +220,33 @@ XComPropertyList XComReader::readProperties(uint32_t dataLen)
 XComCheckpointTable XComReader::readCheckpointTable()
 {
 	XComCheckpointTable checkpointTable;
-	checkpointTable.checkpointCount = readInt32();
-	checkpointTable.checkpoints = new XComCheckpoint[checkpointTable.checkpointCount];
+	uint32_t checkpointCount = readInt32();
 
-	for (unsigned int i = 0; i < checkpointTable.checkpointCount; ++i) {
-		XComCheckpoint *chk = &checkpointTable.checkpoints[i];
-		chk->fullName = strdup(readString());
-		chk->instanceName = strdup(readString());
-		memcpy(chk->unknown1, ptr_, 24);
-		ptr_ += 24;
-		chk->className = strdup(readString());
+	for (unsigned int i = 0; i < checkpointCount; ++i) {
+		XComCheckpoint chk;
+		chk.name = readString();
+		chk.instanceName = readString();
+		chk.vector[0] = readFloat();
+		chk.vector[1] = readFloat();
+		chk.vector[2] = readFloat();
+		chk.rotator[0] = readFloat();
+		chk.rotator[1] = readFloat();
+		chk.rotator[2] = readFloat();
+		chk.className = readString();
 		uint32_t propLen = readInt32();
-		chk->properties = readProperties(propLen);
-		chk->templateIndex = readInt32();
+		const unsigned char* startPtr = ptr_;
+		chk.properties = readProperties(propLen);
+		if (uint32_t(ptr_ - startPtr) < propLen) {
+			chk.padSize = propLen - (ptr_ - startPtr);
+
+			for (unsigned int i = 0; i < chk.padSize; ++i) {
+				if (*ptr_++ != 0) {
+					DBG("Found non-zero padding byte at offset %x", (ptr_ - start_ - 1));
+				}
+			}
+		}
+		chk.templateIndex = readInt32();
+		checkpointTable.push_back(std::move(chk));
 	}
 
 	return checkpointTable;
@@ -392,34 +393,44 @@ XComSave XComReader::getSaveData()
 	DBG("Finished reading actor table at offset %x\n", ptr_ - start_);
 	// Jump back to here after each chunk
 	do {
-		save.unknownInt1 = readInt32();
-		save.unknownStr1 = readString();
+		XComCheckpointChunk chunk;
+		chunk.unknownInt1 = readInt32();
+		chunk.unknownString1 = readString();
 		const char *none = readString();
 		if (strcmp(none, "None") != 0) {
 			fprintf(stderr, "Error locating 'None' after actor table.\n");
 			return{};
 		}
-		save.unknownInt2 = readInt32();
-		save.checkpointTable = readCheckpointTable();
+		
+		chunk.unknownInt2 = readInt32();
+		chunk.checkpointTable = readCheckpointTable();
 		DBG("Finished reading checkpoint table at offset %x\n", ptr_ - start_);
 
-		save.unknownInt3 = readInt32();
-		if (save.unknownInt3 > 0) { // only seems to be present for tactical saves?
-			save.nameTable = readNameTable();
+		uint32_t nameTableLen = readInt32();
+		assert(nameTableLen == 0);
+
+#if 0
+		if (unknownInt3 > 0) { // only seems to be present for tactical saves?
+			XComNameTable nameTable = readNameTable();
 			DBG("Finished reading name table at offset %x\n", ptr_ - start_);
 		}
-		save.unknownStr2 = readString();
-		save.actorTable2 = readActorTable();
+#endif
+
+		chunk.unknownString2 = readString();
+		chunk.actorTable = readActorTable();
 		DBG("Finished reading second actor table at offset %x\n", ptr_ - start_);
 
-		save.unknownInt4 = readInt32();
+		chunk.unknownInt3 = readInt32();
 
-		save.actorTemplateTable = readActorTemplateTable(); // (only seems to be present for tactical saves?)
+		XComActorTemplateTable actorTemplateTable = readActorTemplateTable(); // (only seems to be present for tactical saves?)
+		assert(actorTemplateTable.templateCount == 0);
 		DBG("Finished reading actor template table at offset %x\n", ptr_ - start_);
 
-		readString(); //unknown (game name)
-		readString(); //unknown (map name)
-		readInt32(); //unknown  (checksum?)
+		chunk.gameName = readString(); //unknown (game name)
+		chunk.mapName = readString(); //unknown (map name)
+		chunk.unknownInt4 = readInt32(); //unknown  (checksum?)
+
+		save.checkpoints.push_back(std::move(chunk));
 	}
 	while ((ptr_ - start_ < length_));
 	return save;
