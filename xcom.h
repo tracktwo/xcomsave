@@ -6,12 +6,6 @@
 #include <array>
 #include <memory>
 #include <algorithm>
-#include <windows.h>
-#include <wincrypt.h>
-#include "json11.hpp"
-
-
-using namespace json11;
 
 struct XComSaveHeader
 {
@@ -19,14 +13,14 @@ struct XComSaveHeader
 	uint32_t uncompressedSize;
 	uint32_t gameNumber;
 	uint32_t saveNumber;
-	const char* saveDescription;
-	const char* time;
-	const char* mapCommand;
+	std::string saveDescription;
+	std::string time;
+	std::string mapCommand;
 	bool tacticalSave;
 	bool ironman;
 	bool autoSave;
-	const char* dlcString;
-	const char* language;
+	std::string dlcString;
+	std::string language;
 	uint32_t crc;
 };
 
@@ -34,16 +28,11 @@ struct XComActor
 {
 	std::string actorName;
 	uint32_t instanceNum;
-	
-	Json to_json() const {
-		return Json::object {
-			{ "instance_num", (int)instanceNum },
-			{ "name", actorName }
-		};
-	}
 };
 
 using XComActorTable = std::vector<XComActor>;
+
+struct XComPropertyVisitor;
 
 struct XComProperty
 {
@@ -69,11 +58,34 @@ struct XComProperty
 		return name;
 	}
 
-	virtual Json to_json() const = 0;
+	virtual void accept(XComPropertyVisitor* v) = 0;
 
 protected:
 	std::string name;
 	Kind kind;
+};
+
+struct XComIntProperty;
+struct XComFloatProperty;
+struct XComBoolProperty;
+struct XComStrProperty;
+struct XComObjectProperty;
+struct XComByteProperty;
+struct XComStructProperty;
+struct XComArrayProperty;
+struct XComStaticArrayProperty;
+
+struct XComPropertyVisitor
+{
+	virtual void visitInt(XComIntProperty*) = 0;
+	virtual void visitFloat(XComFloatProperty*) = 0;
+	virtual void visitBool(XComBoolProperty*) = 0;
+	virtual void visitString(XComStrProperty*) = 0;
+	virtual void visitObject(XComObjectProperty*) = 0;
+	virtual void visitByte(XComByteProperty*) = 0;
+	virtual void visitStruct(XComStructProperty*) = 0;
+	virtual void visitArray(XComArrayProperty*) = 0;
+	virtual void visitStaticArray(XComStaticArrayProperty*) = 0;
 };
 
 using XComPropertyPtr = std::unique_ptr<XComProperty>;
@@ -87,13 +99,8 @@ struct XComObjectProperty : public XComProperty
 	//unsigned char *data;
 	std::vector<unsigned char> data;
 
-	Json to_json() const
-	{
-		return Json::object{
-			{ "name", name },
-			{ "kind", "ObjectProperty" },
-			{ "data", data }
-		};
+	void accept(XComPropertyVisitor *v) {
+		v->visitObject(this);
 	}
 };
 
@@ -104,13 +111,8 @@ struct XComIntProperty : public XComProperty
 
 	uint32_t value;
 
-	Json to_json() const
-	{
-		return Json::object{
-			{ "name", name },
-			{ "kind", "IntProperty" },
-			{ "value", (int) value }
-		};
+	void accept(XComPropertyVisitor *v) {
+		v->visitInt(this);
 	}
 };
 
@@ -121,13 +123,8 @@ struct XComBoolProperty : public XComProperty
 
 	bool value;
 
-	Json to_json() const
-	{
-		return Json::object{
-			{ "name", name },
-			{ "kind", "BoolProperty" },
-			{ "value", value }
-		};
+	void accept(XComPropertyVisitor *v) {
+		v->visitBool(this);
 	}
 };
 
@@ -140,25 +137,8 @@ struct XComArrayProperty : public XComProperty
 	uint32_t arrayBound;
 	uint32_t elementSize;
 
-	Json to_json() const
-	{
-		unsigned long strLen;
-		char *dataStr;
-		if (arrayBound > 0 && elementSize > 0) {
-			CryptBinaryToString(data, arrayBound*elementSize, CRYPT_STRING_HEXRAW | CRYPT_STRING_NOCRLF, nullptr, &strLen);
-			dataStr = new char[strLen];
-			CryptBinaryToString(data, arrayBound*elementSize, CRYPT_STRING_HEXRAW | CRYPT_STRING_NOCRLF, dataStr, &strLen);
-		}
-		else {
-			dataStr = "";
-		}
-		return Json::object{
-			{ "name", name },
-			{ "kind", "ArrayProperty" },
-			{ "array_bound", (int)arrayBound },
-			{ "element_size", (int)elementSize },
-			{ "data", dataStr }
-		};
+	void accept(XComPropertyVisitor *v) {
+		v->visitArray(this);
 	}
 };
 
@@ -171,15 +151,8 @@ struct XComByteProperty : public XComProperty
 	std::string enumVal;
 	uint32_t extVal;
 
-	Json to_json() const
-	{
-		return Json::object{
-			{ "name", name },
-			{ "kind", "ByteProperty" },
-			{ "type", enumType },
-			{ "value", enumVal },
-			{ "extra_value", (int) extVal }
-		};
+	void accept(XComPropertyVisitor *v) {
+		v->visitByte(this);
 	}
 };
 
@@ -190,13 +163,8 @@ struct XComFloatProperty : public XComProperty
 
 	float value;
 
-	Json to_json() const
-	{
-		return Json::object{
-			{ "name", name },
-			{ "kind", "FloatProperty" },
-			{ "value", value }
-		};
+	void accept(XComPropertyVisitor *v) {
+		v->visitFloat(this);
 	}
 };
 
@@ -213,28 +181,8 @@ struct XComStructProperty : public XComProperty
 	unsigned char *nativeData;
 	uint32_t nativeDataLen;
 
-	Json to_json() const
-	{
-		std::vector<Json> jsonProps;
-		std::for_each(structProps.begin(), structProps.end(),
-			[&jsonProps](const XComPropertyPtr& v) { jsonProps.push_back(v->to_json()); });
-
-		unsigned long strLen;
-		char *dataStr;
-		if (nativeDataLen > 0) {
-			CryptBinaryToString(nativeData, nativeDataLen, CRYPT_STRING_HEXRAW | CRYPT_STRING_NOCRLF, nullptr, &strLen);
-			dataStr = new char[strLen];
-			CryptBinaryToString(nativeData, nativeDataLen, CRYPT_STRING_HEXRAW | CRYPT_STRING_NOCRLF, dataStr, &strLen);
-		}
-		else {
-			dataStr = "";
-		}
-		return Json::object{
-			{ "name", name },
-			{ "kind", "StructProperty" },
-			{ "properties", jsonProps },
-			{ "native_data", dataStr }
-		};
+	void accept(XComPropertyVisitor *v) {
+		v->visitStruct(this);
 	}
 };
 
@@ -245,13 +193,8 @@ struct XComStrProperty : public XComProperty
 
 	std::string str;
 
-	Json to_json() const
-	{
-		return Json::object{
-			{ "name", name },
-			{ "kind", "StrProperty" },
-			{ "value", str }
-		};
+	void accept(XComPropertyVisitor *v) {
+		v->visitString(this);
 	}
 };
 
@@ -270,19 +213,10 @@ struct XComStaticArrayProperty : public XComProperty
 		return properties.size();
 	}
 
-	Json to_json() const
-	{
-		std::vector<Json> jsonProps;
-		std::for_each(properties.begin(), properties.end(),
-			[&jsonProps](const XComPropertyPtr& v) { jsonProps.push_back(v->to_json()); });
-
-		return Json::object{
-			{ "name", name },
-			{ "kind", "StaticArrayProperty" },
-			{ "properties", jsonProps }
-		};
+	void accept(XComPropertyVisitor *v) {
+		v->visitStaticArray(this);
 	}
-private:
+
 	XComPropertyList properties;
 };
 
@@ -299,41 +233,18 @@ struct XComCheckpoint
 	XComPropertyList properties;
 	uint32_t templateIndex;
 	uint32_t padSize;
-
-	Json to_json() const
-	{
-		std::vector<Json> propertyJson;
-		std::for_each(properties.begin(), properties.end(), 
-			[&propertyJson](const XComPropertyPtr& v) { propertyJson.push_back(v->to_json()); });
-
-		return Json::object {
-			{ "name", name },
-			{ "instance_name", instanceName },
-			{ "vector", vector },
-			{ "rotator", rotator },
-			{ "class_name", className },
-			{ "properties", propertyJson },
-			{ "template_index", (int)templateIndex },
-			{ "pad_size", (int) padSize }
-		};
-	}
 };
 
 using XComCheckpointTable = std::vector<XComCheckpoint>;
 
-
 struct XComActorTemplate
 {
-	char *actorClassPath;
-	char *archetypePath;
+	std::string actorClassPath;
+	std::string archetypePath;
 	unsigned char loadParams[64];
 };
 
-struct XComActorTemplateTable
-{
-	uint32_t templateCount;
-	XComActorTemplate *templates;
-};
+using XComActorTemplateTable = std::vector<XComActorTemplate>;
 
 struct XComNameEntry
 {
@@ -362,20 +273,7 @@ struct XComCheckpointChunk
 	std::string mapName;
 	uint32_t unknownInt4;
 
-	Json to_json() const {
-		return Json::object{
-			{ "unknown_int1", (int)unknownInt1 },
-			{ "unknown_str1", unknownString1 },
-			{ "checkpoint_table", checkpointTable },
-			{ "unknown_int2", (int)unknownInt2	},
-			{ "unknown_str2", unknownString2 },
-			{ "actor_table", actorTable },
-			{ "unknown_int3", (int)unknownInt3 },
-			{ "game_name", gameName },
-			{ "map_name", mapName },
-			{ "unknown_int4", (int)unknownInt4 }
-		};
-	}
+
 };
 
 using XComCheckpointChunkTable = std::vector<XComCheckpointChunk>;
@@ -384,22 +282,6 @@ struct XComSave
 	XComSaveHeader header;
 	XComActorTable actorTable;
 	XComCheckpointChunkTable checkpoints;
-#if 0
-	uint32_t unknownInt1; // 4 unknown bytes immediately following the actor table.
-	const char *unknownStr1; // unknown string
-	uint32_t unknownInt2; // 4 unknown bytes after the "None" string.
-	XComCheckpointTable checkpointTable;
-	uint32_t unknownInt3; // 4 unknown bytes after the checkpoint table
-	XComNameTable nameTable;
-	const char *unknownStr2; // Unknown string 2 
-	XComActorTable actorTable2;
-	XComActorTemplateTable actorTemplateTable;
-	uint32_t unknownInt4; // 4 unknown bytes after 2nd actor table
-	uint32_t unknownInt5; // 4 unknown bytes after 2nd actor table
-	const char *unknownStr3; // Unknown string 3
-	const char *unknownStr4; // Unknown string 4
-	uint32_t unknownInt6;	// unknown 4 bytes after 2nd actor table
-#endif
 };
 
 #endif // XCOM_H

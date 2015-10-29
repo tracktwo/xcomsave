@@ -255,19 +255,15 @@ XComCheckpointTable XComReader::readCheckpointTable()
 XComActorTemplateTable XComReader::readActorTemplateTable()
 {
 	XComActorTemplateTable templateTable;
-	templateTable.templateCount = readInt32();
-	if (templateTable.templateCount == 0)
-	{
-		return templateTable;
-	}
-	templateTable.templates = new XComActorTemplate[templateTable.templateCount];
+	uint32_t templateCount = readInt32();
 
-	for (unsigned int i = 0; i < templateTable.templateCount; ++i) {
-		XComActorTemplate *tmpl = &templateTable.templates[i];
-		tmpl->actorClassPath = strdup(readString());
-		memcpy(tmpl->loadParams, ptr_, 64);
+	for (unsigned int i = 0; i < templateCount; ++i) {
+		XComActorTemplate tmpl;
+		tmpl.actorClassPath = readString();
+		memcpy(tmpl.loadParams, ptr_, 64);
 		ptr_ += 64;
-		tmpl->archetypePath = strdup(readString());
+		tmpl.archetypePath = readString();
+		templateTable.push_back(std::move(tmpl));
 	}
 
 	return templateTable;
@@ -423,7 +419,7 @@ XComSave XComReader::getSaveData()
 		chunk.unknownInt3 = readInt32();
 
 		XComActorTemplateTable actorTemplateTable = readActorTemplateTable(); // (only seems to be present for tactical saves?)
-		assert(actorTemplateTable.templateCount == 0);
+		assert(actorTemplateTable.size() == 0);
 		DBG("Finished reading actor template table at offset %x\n", ptr_ - start_);
 
 		chunk.gameName = readString(); //unknown (game name)
