@@ -179,7 +179,7 @@ XComPropertyList XComReader::readProperties(uint32_t dataLen)
 		}
 		else
 		{
-			DBG("uh-oh, unknown type\n");
+			DBG("Error: unknown property type %s\n", propType.c_str());
 		}
 
 		if (prop.get() != nullptr) {

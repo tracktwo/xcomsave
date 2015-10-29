@@ -1,10 +1,17 @@
-#include "jsonwriter.h"
+
+#include "xcom.h"
+#include "xcomreader.h"
+#include "json11.hpp"
+
+#include <iostream>
+
 #include <windows.h>
 #include <wincrypt.h>
 
+using namespace json11;
+
 struct JsonPropertyVisitor : public XComPropertyVisitor
 {
-	// Inherited via XComPropertyVisitor
 	virtual void visitInt(XComIntProperty *prop) override
 	{
 		json = Json::object {
@@ -230,4 +237,81 @@ Json buildJson(const XComSave& save)
 	};
 
 	return jsonSave;
+}
+
+void usage(const char * name)
+{
+	printf("Usage: %s -i <infile> -o <outfile>\n", name);
+}
+
+const unsigned char * read_file(const std::string& filename, long *fileLen)
+{
+	FILE *fp = fopen(filename.c_str(), "rb");
+	if (fp == nullptr) {
+		fprintf(stderr, "Error opening file\n");
+		return nullptr;
+	}
+
+	if (fseek(fp, 0, SEEK_END) != 0) {
+		fprintf(stderr, "Error determining file length\n");
+		return nullptr;
+	}
+
+	*fileLen = ftell(fp);
+
+	if (fseek(fp, 0, SEEK_SET) != 0) {
+		fprintf(stderr, "Error determining file length\n");
+		return nullptr;
+	}
+
+	unsigned char* filebuf = new unsigned char[(*fileLen)];
+	if (fread(filebuf, 1, *fileLen, fp) != *fileLen) {
+		fprintf(stderr, "Error reading file contents\n");
+		return nullptr;
+	}
+
+	fclose(fp);
+	return filebuf;
+}
+
+int main(int argc, char *argv[])
+{
+	bool writesave = false;
+	const char *infile = nullptr;
+	const char *outfile = nullptr;
+
+	if (argc <= 1) {
+		usage(argv[0]);
+		return 1;
+	}
+
+	for (int i = 1; i < argc; ++i) {
+		if (strcmp(argv[i], "-i") == 0) {
+			infile = argv[++i];
+		}
+		else if (strcmp(argv[i], "-o") == 0) {
+			outfile = argv[++i];
+		}
+	}
+
+	if (infile == nullptr || outfile == nullptr) {
+		usage(argv[0]);
+		return 1;
+	}
+
+	long fileLen = 0;
+	auto fileBuf = read_file(infile, &fileLen);
+
+	if (fileBuf == nullptr) {
+		return 1;
+	}
+
+	XComReader reader{ fileBuf, fileLen };
+	XComSave save = reader.getSaveData();
+	Json jsonsave = buildJson(save);
+	delete[] fileBuf;
+	std::string str = jsonsave.dump();
+	FILE *fp = fopen(outfile, "w");
+	fwrite(str.c_str(), 1, str.length(), fp);
+	fclose(fp);
 }

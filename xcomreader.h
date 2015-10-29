@@ -9,7 +9,7 @@
 class XComReader
 {
 public:
-	XComReader(const unsigned char *ptr, long len) :
+	XComReader(const unsigned char* ptr, long len) :
 		ptr_(ptr), start_(ptr), length_(len) {}
 
 	XComSave getSaveData();

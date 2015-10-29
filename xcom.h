@@ -277,6 +277,7 @@ struct XComCheckpointChunk
 };
 
 using XComCheckpointChunkTable = std::vector<XComCheckpointChunk>;
+
 struct XComSave
 {
 	XComSaveHeader header;
