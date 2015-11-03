@@ -26,7 +26,7 @@ struct XComSaveHeader
 
 struct XComActor
 {
-	std::string actorName;
+	std::pair<std::string, std::string> actorName;
 	uint32_t instanceNum;
 };
 
@@ -49,7 +49,8 @@ struct XComProperty
 		StaticArrayProperty
 	};
 
-	XComProperty(const std::string &n, Kind k) : name(n), kind(k) {}
+	XComProperty(const std::string &n, uint32_t s, Kind k) : name(n), size(s), kind(k) {}
+
 	Kind getKind() const {
 		return kind;
 	}
@@ -58,17 +59,22 @@ struct XComProperty
 		return name;
 	}
 
+	uint32_t getSize() const {
+		return size;
+	}
+
 	virtual void accept(XComPropertyVisitor* v) = 0;
 
 protected:
 	std::string name;
+	uint32_t size;
 	Kind kind;
 };
 
 struct XComIntProperty;
 struct XComFloatProperty;
 struct XComBoolProperty;
-struct XComStrProperty;
+struct XComStringProperty;
 struct XComObjectProperty;
 struct XComByteProperty;
 struct XComStructProperty;
@@ -80,7 +86,7 @@ struct XComPropertyVisitor
 	virtual void visitInt(XComIntProperty*) = 0;
 	virtual void visitFloat(XComFloatProperty*) = 0;
 	virtual void visitBool(XComBoolProperty*) = 0;
-	virtual void visitString(XComStrProperty*) = 0;
+	virtual void visitString(XComStringProperty*) = 0;
 	virtual void visitObject(XComObjectProperty*) = 0;
 	virtual void visitByte(XComByteProperty*) = 0;
 	virtual void visitStruct(XComStructProperty*) = 0;
@@ -93,10 +99,9 @@ using XComPropertyList = std::vector<XComPropertyPtr>;
 
 struct XComObjectProperty : public XComProperty
 {
-	XComObjectProperty(const std::string &n, std::vector<unsigned char> d) :
-		XComProperty(n, Kind::ObjectProperty), data(d) {}
+	XComObjectProperty(const std::string &n, uint32_t s, std::vector<unsigned char>&& d) :
+		XComProperty(n, s, Kind::ObjectProperty), data(std::move(d)) {}
 
-	//unsigned char *data;
 	std::vector<unsigned char> data;
 
 	void accept(XComPropertyVisitor *v) {
@@ -106,8 +111,8 @@ struct XComObjectProperty : public XComProperty
 
 struct XComIntProperty : public XComProperty
 {
-	XComIntProperty(const std::string& n, uint32_t v) :
-		XComProperty(n, Kind::IntProperty), value(v) {}
+	XComIntProperty(const std::string& n, uint32_t s, uint32_t v) :
+		XComProperty(n, s, Kind::IntProperty), value(v) {}
 
 	uint32_t value;
 
@@ -118,8 +123,8 @@ struct XComIntProperty : public XComProperty
 
 struct XComBoolProperty : public XComProperty
 {
-	XComBoolProperty(const std::string &n, bool v) :
-		XComProperty(n, Kind::BoolProperty), value(v) {}
+	XComBoolProperty(const std::string &n, uint32_t s, bool v) :
+		XComProperty(n, s, Kind::BoolProperty), value(v) {}
 
 	bool value;
 
@@ -130,8 +135,8 @@ struct XComBoolProperty : public XComProperty
 
 struct XComArrayProperty : public XComProperty
 {
-	XComArrayProperty(const std::string& n, unsigned char *a, uint32_t b, uint32_t elem) :
-		XComProperty(n, Kind::ArrayProperty), data(a), arrayBound(b), elementSize(elem) {}
+	XComArrayProperty(const std::string& n, uint32_t s, unsigned char *a, uint32_t b, uint32_t elem) :
+		XComProperty(n, s, Kind::ArrayProperty), data(a), arrayBound(b), elementSize(elem) {}
 
 	unsigned char *data;
 	uint32_t arrayBound;
@@ -144,8 +149,8 @@ struct XComArrayProperty : public XComProperty
 
 struct XComByteProperty : public XComProperty
 {
-	XComByteProperty(const std::string& n, const std::string &et, const std::string &ev, uint32_t i) :
-		XComProperty(n, Kind::ByteProperty), enumType(et), enumVal(ev), extVal(i) {}
+	XComByteProperty(const std::string& n, uint32_t s, const std::string &et, const std::string &ev, uint32_t i) :
+		XComProperty(n, s, Kind::ByteProperty), enumType(et), enumVal(ev), extVal(i) {}
 
 	std::string enumType;
 	std::string enumVal;
@@ -158,8 +163,8 @@ struct XComByteProperty : public XComProperty
 
 struct XComFloatProperty : public XComProperty
 {
-	XComFloatProperty(const std::string &n, float f) :
-		XComProperty(n, Kind::FloatProperty), value(f) {}
+	XComFloatProperty(const std::string &n, uint32_t s, float f) :
+		XComProperty(n, s, Kind::FloatProperty), value(f) {}
 
 	float value;
 
@@ -170,11 +175,11 @@ struct XComFloatProperty : public XComProperty
 
 struct XComStructProperty : public XComProperty
 {
-	XComStructProperty(const std::string &n, const std::string &sn, XComPropertyList &&propList) :
-		XComProperty(n, Kind::StructProperty), structName(sn), structProps(std::move(propList)), nativeData(nullptr), nativeDataLen(0) {}
+	XComStructProperty(const std::string &n, uint32_t s, const std::string &sn, XComPropertyList &&propList) :
+		XComProperty(n, s, Kind::StructProperty), structName(sn), structProps(std::move(propList)), nativeData(nullptr), nativeDataLen(0) {}
 
-	XComStructProperty(const std::string& n, const std::string &sn, unsigned char* nd, uint32_t l) :
-		XComProperty(n, Kind::StructProperty), structName(sn), nativeData(nd), nativeDataLen(l) {}
+	XComStructProperty(const std::string& n, uint32_t s, const std::string &sn, unsigned char* nd, uint32_t l) :
+		XComProperty(n, s, Kind::StructProperty), structName(sn), nativeData(nd), nativeDataLen(l) {}
 
 	std::string structName;
 	XComPropertyList structProps;
@@ -186,10 +191,10 @@ struct XComStructProperty : public XComProperty
 	}
 };
 
-struct XComStrProperty : public XComProperty
+struct XComStringProperty : public XComProperty
 {
-	XComStrProperty(const std::string& n, const std::string& s) :
-		XComProperty(n, Kind::StrProperty), str(s) {}
+	XComStringProperty(const std::string& n, uint32_t sz, const std::string& s) :
+		XComProperty(n, sz, Kind::StrProperty), str(s) {}
 
 	std::string str;
 
@@ -201,7 +206,7 @@ struct XComStrProperty : public XComProperty
 struct XComStaticArrayProperty : public XComProperty
 {
 	XComStaticArrayProperty(const std::string& n) :
-		XComProperty(n, Kind::StaticArrayProperty) {}
+		XComProperty(n, 0, Kind::StaticArrayProperty) {}
 
 	void addProperty(XComPropertyPtr&& ptr)
 	{
@@ -230,6 +235,7 @@ struct XComCheckpoint
 	UVector vector;
 	URotator rotator;
 	std::string className;
+	uint32_t propLen;
 	XComPropertyList properties;
 	uint32_t templateIndex;
 	uint32_t padSize;
@@ -254,26 +260,20 @@ struct XComNameEntry
 	unsigned char *data;
 };
 
-struct XComNameTable
-{
-	uint32_t nameCount;
-	XComNameEntry *names;
-};
+using XComNameTable = std::vector<XComNameEntry>;
 
 struct XComCheckpointChunk
 {
 	uint32_t unknownInt1;
-	std::string unknownString1;
+	std::string gameType;
 	XComCheckpointTable checkpointTable;
 	uint32_t unknownInt2;
-	std::string unknownString2;
+	std::string className;
 	XComActorTable actorTable;
 	uint32_t unknownInt3;
-	std::string gameName;
+	std::string displayName;
 	std::string mapName;
 	uint32_t unknownInt4;
-
-
 };
 
 using XComCheckpointChunkTable = std::vector<XComCheckpointChunk>;

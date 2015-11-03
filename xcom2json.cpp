@@ -16,6 +16,7 @@ struct JsonPropertyVisitor : public XComPropertyVisitor
 	{
 		json = Json::object {
 			{ "name", prop->getName() },
+			{ "size", (int)prop->getSize() },
 			{ "kind", "IntProperty" },
 			{ "value", (int)prop->value }
 		};
@@ -25,6 +26,7 @@ struct JsonPropertyVisitor : public XComPropertyVisitor
 	{
 		json = Json::object{
 			{ "name", prop->getName() },
+			{ "size", (int)prop->getSize() },
 			{ "kind", "FloatProperty" },
 			{ "value", prop->value }
 		};
@@ -34,16 +36,18 @@ struct JsonPropertyVisitor : public XComPropertyVisitor
 	{
 		json = Json::object{
 			{ "name", prop->getName() },
+			{ "size", (int)prop->getSize() },
 			{ "kind", "BoolProperty" },
 			{ "value", prop->value }
 		};
 	}
 
-	virtual void visitString(XComStrProperty *prop) override
+	virtual void visitString(XComStringProperty *prop) override
 	{
 		json = Json::object{
 			{ "name", prop->getName() },
-			{ "kind", "StrProperty" },
+			{ "size", (int)prop->getSize() },
+			{ "kind", "StringProperty" },
 			{ "value", prop->str }
 		};
 	}
@@ -52,6 +56,7 @@ struct JsonPropertyVisitor : public XComPropertyVisitor
 	{
 		json = Json::object{
 			{ "name", prop->getName() },
+			{ "size", (int)prop->getSize() },
 			{ "kind", "ObjectProperty" },
 			{ "data", prop->data }
 		};
@@ -61,6 +66,7 @@ struct JsonPropertyVisitor : public XComPropertyVisitor
 	{
 		json = Json::object{
 			{ "name", prop->getName() },
+			{ "size", (int)prop->getSize() },
 			{ "kind", "ByteProperty" },
 			{ "type", prop->enumType },
 			{ "value", prop->enumVal },
@@ -92,6 +98,8 @@ struct JsonPropertyVisitor : public XComPropertyVisitor
 
 		json = Json::object{
 			{ "name", prop->getName() },
+			{ "size", (int)prop->getSize() },
+			{ "struct_name", prop->structName },
 			{ "kind", "StructProperty" },
 			{ "properties", jsonProps },
 			{ "native_data", dataStr }
@@ -113,6 +121,7 @@ struct JsonPropertyVisitor : public XComPropertyVisitor
 		}
 		json = Json::object{
 			{ "name", prop->getName() },
+			{ "size", (int)prop->getSize() },
 			{ "kind", "ArrayProperty" },
 			{ "array_bound", (int)prop->arrayBound },
 			{ "element_size", (int)prop->elementSize },
@@ -130,6 +139,7 @@ struct JsonPropertyVisitor : public XComPropertyVisitor
 				jsonProps.push_back(visitor.json); 
 		});
 
+		// Static array properties don't really exist in the save file and don't have a size.
 		json = Json::object{
 			{ "name", prop->getName() },
 			{ "kind", "StaticArrayProperty" },
@@ -142,9 +152,11 @@ struct JsonPropertyVisitor : public XComPropertyVisitor
 
 static Json XComActorToJson(const XComActor& actor)
 {
+	std::string actorName = actor.actorName.first;
+	actorName.append(".").append(actor.actorName.second);
 	return Json::object{
 		{ "instance_num", (int)actor.instanceNum },
-		{ "name", actor.actorName }
+		{ "name", actorName }
 	};
 }
 
@@ -164,6 +176,7 @@ static Json XComCheckpointToJson(const XComCheckpoint& chk)
 		{ "vector", chk.vector },
 		{ "rotator", chk.rotator },
 		{ "class_name", chk.className },
+		{ "properties_length", (int)chk.propLen },
 		{ "properties", propertyJson },
 		{ "template_index", (int)chk.templateIndex },
 		{ "pad_size", (int)chk.padSize }
@@ -184,13 +197,13 @@ static Json XComCheckpointChunkToJson(const XComCheckpointChunk& chk)
 
 	return Json::object{
 			{ "unknown_int1", (int)chk.unknownInt1 },
-			{ "unknown_str1", chk.unknownString1 },
+			{ "game_type", chk.gameType },
 			{ "checkpoint_table", checkpointTableJson },
 			{ "unknown_int2", (int)chk.unknownInt2	},
-			{ "unknown_str2", chk.unknownString2 },
+			{ "class_name", chk.className },
 			{ "actor_table", actorTableJson },
 			{ "unknown_int3", (int)chk.unknownInt3 },
-			{ "game_name", chk.gameName },
+			{ "display_name", chk.displayName },
 			{ "map_name", chk.mapName },
 			{ "unknown_int4", (int)chk.unknownInt4 }
 	};
@@ -198,7 +211,7 @@ static Json XComCheckpointChunkToJson(const XComCheckpointChunk& chk)
 
 static Json XComCheckpointChunkTableToJson(const XComCheckpointChunkTable & table)
 {
-	std::vector<Json> chunks(table.size());
+	std::vector<Json> chunks;
 	for (size_t i = 0; i < table.size(); ++i) {
 		chunks.push_back(XComCheckpointChunkToJson(table[i]));
 	}

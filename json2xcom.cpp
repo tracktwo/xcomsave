@@ -9,6 +9,38 @@
 
 using namespace json11;
 
+struct PropertyDispatch
+{
+	std::string name;
+	XComPropertyPtr(*pFunc)(const Json& json);
+};
+
+XComPropertyPtr buildProperty(const Json& json);
+XComPropertyList buildPropertyList(const Json& json);
+
+XComPropertyPtr buildIntProperty(const Json& json);
+XComPropertyPtr buildFloatProperty(const Json& json);
+XComPropertyPtr buildBoolProperty(const Json& json);
+XComPropertyPtr buildObjectProperty(const Json& json);
+XComPropertyPtr buildStringProperty(const Json& json);
+XComPropertyPtr buildByteProperty(const Json& json);
+XComPropertyPtr buildStructProperty(const Json& json);
+XComPropertyPtr buildArrayProperty(const Json& json);
+XComPropertyPtr buildStaticArrayProperty(const Json& json);
+
+
+static PropertyDispatch propertyDispatch[] = {
+	{ "IntProperty", buildIntProperty },
+	{ "FloatProperty", buildFloatProperty },
+	{ "BoolProperty", buildBoolProperty },
+	{ "StringProperty", buildStringProperty },
+	{ "ObjectProperty", buildObjectProperty },
+	{ "ByteProperty", buildByteProperty },
+	{ "StructProperty", buildStructProperty },
+	{ "ArrayProperty", buildArrayProperty },
+	{ "StaticArrayProperty", buildStaticArrayProperty }
+};
+
 XComSaveHeader buildHeader(const Json& json)
 {
 	XComSaveHeader hdr;
@@ -48,6 +80,342 @@ XComSaveHeader buildHeader(const Json& json)
 	return hdr;
 }
 
+XComActor buildActor(const Json& json)
+{
+	Json::shape shape = {
+		{ "name", Json::STRING },
+		{ "instance_num", Json::NUMBER }
+	};
+	std::string err;
+	if (!json.has_shape(shape, err)) {
+		throw std::exception("Error reading json file: format mismatch in actor");
+	}
+
+	std::string name = json["name"].string_value();
+	size_t dot = name.find_first_of('.');
+	return { 
+		std::make_pair(name.substr(0, dot), name.substr(dot + 1)),
+		static_cast<uint32_t>(json["instance_num"].int_value()) 
+	};
+}
+
+XComActorTable buildActorTable(const Json& json)
+{
+	XComActorTable table;
+	for (const Json& elem : json.array_items()) {
+		table.push_back(buildActor(elem));
+	}
+
+	return table;
+}
+
+std::array<float, 3> buildFloatArray(const Json& json)
+{
+	std::array<float, 3> arr;
+	if (json.array_items().size() != 3) {
+		throw std::exception("Error reading json file: format mismatch in vector/rotator array");
+	}
+
+	for (int i = 0; i < 3; ++i) {
+		arr[i] = static_cast<float>(json.array_items()[i].number_value());
+	}
+
+	return arr;
+}
+
+XComPropertyPtr buildIntProperty(const Json& json)
+{
+	std::string err;
+	Json::shape shape = {
+		{ "name", Json::STRING },
+		{ "size", Json::NUMBER },
+		{ "value", Json::NUMBER }
+	};
+
+	if (!json.has_shape(shape, err)) {
+		throw std::exception("Error reading json file: format mismatch in int property");
+	}
+
+	return std::make_unique<XComIntProperty>(json["name"].string_value(), json["size"].int_value(), json["value"].int_value());
+}
+
+XComPropertyPtr buildFloatProperty(const Json& json)
+{
+	std::string err;
+	Json::shape shape = {
+		{ "name", Json::STRING },
+		{ "size", Json::NUMBER },
+		{ "value", Json::NUMBER }
+	};
+
+	if (!json.has_shape(shape, err)) {
+		throw std::exception("Error reading json file: format mismatch in float property");
+	}
+
+	return std::make_unique<XComFloatProperty>(json["name"].string_value(), json["size"].int_value(), static_cast<float>(json["value"].number_value()));
+}
+
+XComPropertyPtr buildBoolProperty(const Json& json)
+{
+	std::string err;
+	Json::shape shape = {
+		{ "name", Json::STRING },
+		{ "size", Json::NUMBER },
+		{ "value", Json::BOOL }
+	};
+
+	if (!json.has_shape(shape, err)) {
+		throw std::exception("Error reading json file: format mismatch in bool property");
+	}
+
+	return std::make_unique<XComBoolProperty>(json["name"].string_value(), json["size"].int_value(), json["value"].bool_value());
+}
+
+XComPropertyPtr buildStringProperty(const Json& json)
+{
+	std::string err;
+	Json::shape shape = {
+		{ "name", Json::STRING },
+		{ "size", Json::NUMBER },
+		{ "value", Json::STRING }
+	};
+
+	if (!json.has_shape(shape, err)) {
+		throw std::exception("Error reading json file: format mismatch in string property");
+	}
+
+	return std::make_unique<XComStringProperty>(json["name"].string_value(), json["size"].int_value(), json["value"].string_value());
+}
+
+XComPropertyPtr buildObjectProperty(const Json& json)
+{
+	std::string err;
+	Json::shape shape = {
+		{ "name", Json::STRING },
+		{ "size", Json::NUMBER },
+		{ "data", Json::ARRAY }
+	};
+
+	if (!json.has_shape(shape, err)) {
+		throw std::exception("Error reading json file: format mismatch in object property");
+	}
+
+	std::vector<unsigned char> data;
+	for (const Json& elem : json["data"].array_items()) {
+		data.push_back(elem.int_value());
+	}
+
+	return std::make_unique<XComObjectProperty>(json["name"].string_value(), json["size"].int_value(), std::move(data));
+}
+
+XComPropertyPtr buildByteProperty(const Json& json)
+{
+	std::string err;
+	Json::shape shape = {
+		{ "name", Json::STRING },
+		{ "size", Json::NUMBER },
+		{ "type", Json::STRING },
+		{ "value", Json::STRING },
+		{ "extra_value", Json::NUMBER }
+	};
+
+	if (!json.has_shape(shape, err)) {
+		throw std::exception("Error reading json file: format mismatch in byte property");
+	}
+
+	return std::make_unique<XComByteProperty>(json["name"].string_value(), json["size"].int_value(), json["type"].string_value(), json["value"].string_value(), json["extra_value"].int_value());
+}
+
+XComPropertyPtr buildStructProperty(const Json& json)
+{
+	std::string err;
+	Json::shape shape = {
+		{ "name", Json::STRING },
+		{ "size", Json::NUMBER },
+		{ "struct_name", Json::STRING },
+		{ "properties", Json::ARRAY },
+		{ "native_data", Json::STRING },
+	};
+
+	if (!json.has_shape(shape, err)) {
+		throw std::exception("Error reading json file: format mismatch in struct property");
+	}
+
+	if (json["native_data"].string_value() != "") {
+		unsigned long dataLen;
+		unsigned char *data;
+
+		CryptStringToBinary(json["native_data"].string_value().c_str(), 0, CRYPT_STRING_HEXRAW | CRYPT_STRING_NOCRLF, nullptr, &dataLen, nullptr, nullptr);
+		data = new unsigned char[dataLen];
+		CryptStringToBinary(json["native_data"].string_value().c_str(), 0, CRYPT_STRING_HEXRAW | CRYPT_STRING_NOCRLF, data, &dataLen, nullptr, nullptr);
+
+		return std::make_unique<XComStructProperty>(json["name"].string_value(), json["size"].int_value(), json["struct_name"].string_value(), data, dataLen);
+	}
+	else {
+		XComPropertyList props = buildPropertyList(json["properties"]);
+		return std::make_unique<XComStructProperty>(json["name"].string_value(), json["size"].int_value(), json["struct_name"].string_value(), std::move(props));
+	}
+}
+
+XComPropertyPtr buildArrayProperty(const Json& json)
+{
+	std::string err;
+	Json::shape shape = {
+		{ "name", Json::STRING },
+		{ "size", Json::NUMBER },
+		{ "array_bound", Json::NUMBER },
+		{ "element_size", Json::NUMBER },
+		{ "data", Json::STRING },
+	};
+
+	if (!json.has_shape(shape, err)) {
+		throw std::exception("Error reading json file: format mismatch in array property");
+	}
+
+	unsigned long dataLen = 0;
+	unsigned char *data = nullptr;
+
+	if (json["data"].string_value().length() > 0) {
+		CryptStringToBinary(json["data"].string_value().c_str(), 0, CRYPT_STRING_HEXRAW | CRYPT_STRING_NOCRLF, nullptr, &dataLen, nullptr, nullptr);
+		data = new unsigned char[dataLen];
+		CryptStringToBinary(json["data"].string_value().c_str(), 0, CRYPT_STRING_HEXRAW | CRYPT_STRING_NOCRLF, data, &dataLen, nullptr, nullptr);
+	}
+
+	return std::make_unique<XComArrayProperty>(json["name"].string_value(), json["size"].int_value(), data, json["array_bound"].int_value(), json["element_size"].int_value());
+}
+
+XComPropertyPtr buildStaticArrayProperty(const Json& json)
+{
+	std::string err;
+	Json::shape shape = {
+		{ "name", Json::STRING },
+		{ "properties", Json::ARRAY },
+	};
+
+	if (!json.has_shape(shape, err)) {
+		throw std::exception("Error reading json file: format mismatch in static array property");
+	}
+
+	std::unique_ptr<XComStaticArrayProperty> prop = std::make_unique<XComStaticArrayProperty>(json["name"].string_value());
+
+	for (const Json& elem : json["properties"].array_items()) {
+		prop->addProperty(buildProperty(elem));
+	}
+
+	return XComPropertyPtr{ prop.release() };
+}
+
+XComPropertyPtr buildProperty(const Json& json)
+{
+
+	std::string kind = json["kind"].string_value();
+	for (const PropertyDispatch &dispatch : propertyDispatch) {
+		if (dispatch.name.compare(kind) == 0) {
+			return dispatch.pFunc(json);
+		}
+	}
+
+	std::string err = "Error reading json file: Unknown property kind: ";
+	err.append(kind);
+	throw std::exception(err.c_str());
+}
+
+XComPropertyList buildPropertyList(const Json& json) 
+{
+	XComPropertyList props;
+	for (const Json& elem : json.array_items()) {
+		props.push_back(buildProperty(elem));
+	}
+
+	return props;
+}
+
+XComCheckpoint buildCheckpoint(const Json& json)
+{
+	XComCheckpoint chk;
+	std::string err;
+	Json::shape shape = {
+		{ "name", Json::STRING },
+		{ "instance_name", Json::STRING },
+		{ "vector", Json::ARRAY },
+		{ "rotator", Json::ARRAY },
+		{ "class_name", Json::STRING },
+		{ "properties_length", Json::NUMBER },
+		{ "properties", Json::ARRAY },
+		{ "template_index", Json::NUMBER },
+		{ "pad_size", Json::NUMBER }
+	};
+
+	if (!json.has_shape(shape, err)) {
+		throw std::exception("Error reading json file: format mismatch in checkpoint");
+	}
+
+	chk.name = json["name"].string_value();
+	chk.instanceName = json["instance_name"].string_value();
+	chk.vector = buildFloatArray(json["vector"]);
+	chk.rotator = buildFloatArray(json["rotator"]);
+	chk.className = json["class_name"].string_value();
+	chk.propLen = json["properties_length"].int_value();
+	chk.properties = buildPropertyList(json["properties"]);
+	chk.templateIndex = json["template_index"].int_value();
+	chk.padSize = json["pad_size"].int_value();
+	return chk;
+}
+
+XComCheckpointTable buildCheckpointTable(const Json& json)
+{
+	XComCheckpointTable table;
+	for (const Json& elem : json.array_items()) {
+		table.push_back(buildCheckpoint(elem));
+	}
+
+	return table;
+}
+
+XComCheckpointChunk buildCheckpointChunk(const Json& json)
+{
+	XComCheckpointChunk chunk;
+	std::string err;
+	Json::shape shape = {
+		{ "unknown_int1", Json::NUMBER },
+		{ "game_type", Json::STRING },
+		{ "checkpoint_table", Json::ARRAY },
+		{ "unknown_int2", Json::NUMBER },
+		{ "class_name", Json::STRING },
+		{ "actor_table", Json::ARRAY },
+		{ "unknown_int3", Json::NUMBER },
+		{ "display_name", Json::STRING },
+		{ "map_name", Json::STRING },
+		{ "unknown_int4", Json::NUMBER }
+	};
+
+	if (!json.has_shape(shape, err)) {
+		throw std::exception("Error reading json file: format mismatch in checkpoint chunk");
+	}
+
+	chunk.unknownInt1 = json["unknown_int1"].int_value();
+	chunk.gameType = json["game_type"].string_value();
+	chunk.checkpointTable = buildCheckpointTable(json["checkpoint_table"]);
+	chunk.unknownInt2 = json["unknown_int2"].int_value();
+	chunk.className = json["class_name"].string_value();
+	chunk.actorTable = buildActorTable(json["actor_table"]);
+	chunk.unknownInt3 = json["unknown_int3"].int_value();
+	chunk.displayName = json["display_name"].string_value();
+	chunk.mapName = json["map_name"].string_value();
+	chunk.unknownInt4 = json["unknown_int4"].int_value();
+	return chunk;
+}
+
+XComCheckpointChunkTable buildCheckpoints(const Json& json)
+{
+	XComCheckpointChunkTable table;
+	for (const Json& elem : json.array_items()) {
+		table.push_back(buildCheckpointChunk(elem));
+	}
+
+	return table;
+}
+
 XComSave buildSave(const Json& json)
 {
 	XComSave save;
@@ -60,10 +428,11 @@ XComSave buildSave(const Json& json)
 
 	if (!json.has_shape(shape, err)) {
 		throw std::exception("Error reading json file: format mismatch at root\n");
-		return XComSave{};
 	}
 
 	save.header = buildHeader(json["header"]);
+	save.actorTable = buildActorTable(json["actor_table"]);
+	save.checkpoints = buildCheckpoints(json["checkpoints"]);
 	return save;
 }
 
@@ -140,6 +509,8 @@ int main(int argc, char *argv[])
 
 	try {
 		XComSave save = buildSave(jsonsave);
+		XComWriter writer(std::move(save));
+		std::unique_ptr<unsigned char[]> buf = writer.getSaveData();
 	}
 	catch (std::exception e)
 	{
