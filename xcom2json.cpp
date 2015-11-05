@@ -2,11 +2,9 @@
 #include "xcom.h"
 #include "xcomreader.h"
 #include "json11.hpp"
+#include "util.h"
 
 #include <iostream>
-
-#include <windows.h>
-#include <wincrypt.h>
 
 using namespace json11;
 
@@ -84,13 +82,10 @@ struct JsonPropertyVisitor : public XComPropertyVisitor
 				jsonProps.push_back(visitor.json); 
 		});
 
-		unsigned long strLen;
-		char *dataStr;
-		//TODO memleak
+		std::string dataStr;
 		if (prop->nativeDataLen > 0) {
-			CryptBinaryToString(prop->nativeData, prop->nativeDataLen, CRYPT_STRING_HEXRAW | CRYPT_STRING_NOCRLF, nullptr, &strLen);
-			dataStr = new char[strLen];
-			CryptBinaryToString(prop->nativeData, prop->nativeDataLen, CRYPT_STRING_HEXRAW | CRYPT_STRING_NOCRLF, dataStr, &strLen);
+			uint32_t strLen = prop->nativeDataLen * 2 + 1;
+			dataStr = toHex(prop->nativeData.get(), prop->nativeDataLen);
 		}
 		else {
 			dataStr = "";
@@ -108,23 +103,12 @@ struct JsonPropertyVisitor : public XComPropertyVisitor
 
 	virtual void visitArray(XComArrayProperty *prop) override
 	{
-		unsigned long strLen;
-		char *dataStr;
-		// TODO memleak
-		if (prop->arrayBound > 0 && prop->elementSize > 0) {
-			CryptBinaryToString(prop->data, prop->arrayBound*prop->elementSize, CRYPT_STRING_HEXRAW | CRYPT_STRING_NOCRLF, nullptr, &strLen);
-			dataStr = new char[strLen];
-			CryptBinaryToString(prop->data, prop->arrayBound*prop->elementSize, CRYPT_STRING_HEXRAW | CRYPT_STRING_NOCRLF, dataStr, &strLen);
-		}
-		else {
-			dataStr = "";
-		}
+		std::string dataStr = (prop->arrayBound > 0) ? toHex(prop->data.get(), prop->getSize() - 4) : "";
 		json = Json::object{
 			{ "name", prop->getName() },
 			{ "size", (int)prop->getSize() },
 			{ "kind", "ArrayProperty" },
 			{ "array_bound", (int)prop->arrayBound },
-			{ "element_size", (int)prop->elementSize },
 			{ "data", dataStr }
 		};
 	}
@@ -257,34 +241,35 @@ void usage(const char * name)
 	printf("Usage: %s -i <infile> -o <outfile>\n", name);
 }
 
-const unsigned char * read_file(const std::string& filename, long *fileLen)
+Buffer read_file(const std::string& filename)
 {
+	Buffer buffer;
 	FILE *fp = fopen(filename.c_str(), "rb");
 	if (fp == nullptr) {
 		fprintf(stderr, "Error opening file\n");
-		return nullptr;
+		return{};
 	}
 
 	if (fseek(fp, 0, SEEK_END) != 0) {
 		fprintf(stderr, "Error determining file length\n");
-		return nullptr;
+		return{};
 	}
 
-	*fileLen = ftell(fp);
+	buffer.len = ftell(fp);
 
 	if (fseek(fp, 0, SEEK_SET) != 0) {
 		fprintf(stderr, "Error determining file length\n");
-		return nullptr;
+		return{};
 	}
 
-	unsigned char* filebuf = new unsigned char[(*fileLen)];
-	if (fread(filebuf, 1, *fileLen, fp) != *fileLen) {
+	buffer.buf = std::make_unique<unsigned char[]>(buffer.len);
+	if (fread(buffer.buf.get(), 1, buffer.len, fp) != buffer.len) {
 		fprintf(stderr, "Error reading file contents\n");
-		return nullptr;
+		return{};
 	}
 
 	fclose(fp);
-	return filebuf;
+	return buffer;
 }
 
 int main(int argc, char *argv[])
@@ -313,16 +298,15 @@ int main(int argc, char *argv[])
 	}
 
 	long fileLen = 0;
-	auto fileBuf = read_file(infile, &fileLen);
+	Buffer fileBuf = read_file(infile);
 
-	if (fileBuf == nullptr) {
+	if (fileBuf.len == 0) {
 		return 1;
 	}
 
-	XComReader reader{ fileBuf, fileLen };
+	XComReader reader{ std::move(fileBuf) };
 	XComSave save = reader.getSaveData();
 	Json jsonsave = buildJson(save);
-	delete[] fileBuf;
 	std::string str = jsonsave.dump();
 	FILE *fp = fopen(outfile, "w");
 	fwrite(str.c_str(), 1, str.length(), fp);

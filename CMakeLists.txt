@@ -1,6 +1,6 @@
 cmake_minimum_required (VERSION 2.6)
 project (xslib)
-set (xslib_sources minilzo-2.09/minilzo.c xcomreader.cpp crc32.cpp)
+set (xslib_sources minilzo-2.09/minilzo.c xcomreader.cpp xcomwriter.cpp util.cpp)
 set (xslib_headers xcomreader.h xcom.h util.h)
 
 include_directories("minilzo-2.09" "json11")

@@ -1,3 +1,7 @@
+#include <stdint.h>
+#include <string>
+#include <exception>
+#include <memory>
 
 // CRC Table for polynomial 0x04c11db7
 static const unsigned long crc32_table_b[256] =
@@ -44,4 +48,67 @@ unsigned int crc32b(const unsigned char *message, long len)
 		crc = (crc << 8) ^ (crc32_table_b[tmp]);
 	}
 	return ~crc;
+}
+
+static char toHexNibble(unsigned char nib)
+{
+	return nib < 10 ? nib + '0' : nib - 10 + 'a';
+}
+
+static unsigned char fromHexNibble(char c)
+{
+	switch (c)
+	{
+	case '0':
+	case '1':
+	case '2':
+	case '3':
+	case '4':
+	case '5':
+	case '6':
+	case '7':
+	case '8':
+	case '9':
+		return c - '0';
+	case 'a':
+	case 'b':
+	case 'c':
+	case 'd':
+	case 'e':
+	case 'f':
+		return c - 'a' + 10;
+	case 'A':
+	case 'B':
+	case 'C':
+	case 'D':
+	case 'E':
+	case 'F':
+		return c - 'F' + 10;
+	}
+	
+	std::string str = "Unexpected hex character: ";
+	str.append(1, c);
+	throw std::exception(str.c_str());
+}
+
+std::string toHex(const unsigned char *data, uint32_t dataLen)
+{
+	std::string str;
+	for (uint32_t i = 0; i < dataLen; ++i) {
+		str += toHexNibble(data[i] >> 4);
+		str += toHexNibble(data[i] & 0x0F);
+	}
+
+	return str;
+}
+
+std::unique_ptr<unsigned char[]> fromHex(const std::string &str)
+{
+	std::unique_ptr<unsigned char[]> data = std::make_unique<unsigned char[]>(str.length() / 2);
+	for (size_t i = 0; i < str.length(); i += 2) {
+		data[i/2] = fromHexNibble(str[i]) << 4;
+		data[i/2] |= fromHexNibble(str[i + 1]);
+	}
+	
+	return data;
 }

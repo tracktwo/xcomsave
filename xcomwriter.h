@@ -5,6 +5,7 @@
 #include <string>
 
 #include "xcom.h"
+#include "util.h"
 
 struct PropertyWriterVisitor;
 
@@ -15,7 +16,7 @@ public:
 		save_(std::move(save)), buf_{}, bufLen_{ 0 }
 	{}
 
-	std::unique_ptr<unsigned char[]> getSaveData();
+	Buffer getSaveData();
 
 	static const constexpr uint32_t initial_size = 1024 * 1024;
 
@@ -27,12 +28,15 @@ private:
 	void writeInt(uint32_t val);
 	void writeFloat(float val);
 	void writeBool(bool b);
+	void writeRawBytes(unsigned char *buf, uint32_t len);
+	void writeHeader(const XComSaveHeader& header);
 	void writeActorTable(const XComActorTable& actorTable);
 	void writeCheckpointChunks(const XComCheckpointChunkTable& chunks);
 	void writeCheckpointChunk(const XComCheckpointChunk& chunk);
 	void writeCheckpointTable(const XComCheckpointTable& table);
 	void writeCheckpoint(const XComCheckpoint& chk);
 	void writeProperty(const XComPropertyPtr& prop, uint32_t arrayIdx);
+	Buffer compress();
 private:
 	XComSave save_;
 	unsigned char *start_;

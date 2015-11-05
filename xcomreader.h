@@ -5,16 +5,25 @@
 #include <string>
 
 #include "xcom.h"
+#include "util.h"
 
 class XComReader
 {
 public:
-	XComReader(const unsigned char* ptr, long len) :
-		ptr_(ptr), start_(ptr), length_(len) {}
+	XComReader(Buffer&& b) :
+		start_(std::move(b.buf))
+	{
+		length_ = b.len;
+		ptr_ = start_.get();
+	}
 
 	XComSave getSaveData();
 
 private:
+	ptrdiff_t offset() const {
+		return ptr_ - start_.get();
+	}
+
 	uint32_t readInt32();
 	float readFloat();
 	const char* readString();
@@ -29,8 +38,8 @@ private:
 	void getUncompressedData(unsigned char *);
 
 private:
-	const unsigned char *ptr_;
-	const unsigned char *start_;
-	long length_;
+	std::unique_ptr<unsigned char[]> start_;
+	unsigned char *ptr_;
+	size_t length_;
 };
 #endif //XCOM_H

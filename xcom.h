@@ -7,6 +7,9 @@
 #include <memory>
 #include <algorithm>
 
+
+static const int Chunk_Magic = 0x9e2a83c1;
+
 struct XComSaveHeader
 {
 	uint32_t version;
@@ -135,12 +138,11 @@ struct XComBoolProperty : public XComProperty
 
 struct XComArrayProperty : public XComProperty
 {
-	XComArrayProperty(const std::string& n, uint32_t s, unsigned char *a, uint32_t b, uint32_t elem) :
-		XComProperty(n, s, Kind::ArrayProperty), data(a), arrayBound(b), elementSize(elem) {}
+	XComArrayProperty(const std::string& n, uint32_t s, std::unique_ptr<unsigned char[]>&& a, uint32_t b) :
+		XComProperty(n, s, Kind::ArrayProperty), data(std::move(a)), arrayBound(b) {}
 
-	unsigned char *data;
+	std::unique_ptr<unsigned char[]> data;
 	uint32_t arrayBound;
-	uint32_t elementSize;
 
 	void accept(XComPropertyVisitor *v) {
 		v->visitArray(this);
@@ -176,14 +178,14 @@ struct XComFloatProperty : public XComProperty
 struct XComStructProperty : public XComProperty
 {
 	XComStructProperty(const std::string &n, uint32_t s, const std::string &sn, XComPropertyList &&propList) :
-		XComProperty(n, s, Kind::StructProperty), structName(sn), structProps(std::move(propList)), nativeData(nullptr), nativeDataLen(0) {}
+		XComProperty(n, s, Kind::StructProperty), structName(sn), structProps(std::move(propList)), nativeData(), nativeDataLen(0) {}
 
-	XComStructProperty(const std::string& n, uint32_t s, const std::string &sn, unsigned char* nd, uint32_t l) :
-		XComProperty(n, s, Kind::StructProperty), structName(sn), nativeData(nd), nativeDataLen(l) {}
+	XComStructProperty(const std::string& n, uint32_t s, const std::string &sn, std::unique_ptr<unsigned char[]> &&nd, uint32_t l) :
+		XComProperty(n, s, Kind::StructProperty), structName(sn), nativeData(std::move(nd)), nativeDataLen(l) {}
 
 	std::string structName;
 	XComPropertyList structProps;
-	unsigned char *nativeData;
+	std::unique_ptr<unsigned char[]> nativeData;
 	uint32_t nativeDataLen;
 
 	void accept(XComPropertyVisitor *v) {
@@ -226,7 +228,7 @@ struct XComStaticArrayProperty : public XComProperty
 };
 
 using UVector = std::array<float, 3>;
-using URotator = std::array<float, 3>;
+using URotator = std::array<int, 3>;
 
 struct XComCheckpoint
 {

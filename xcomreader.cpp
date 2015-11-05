@@ -37,7 +37,7 @@ const char* XComReader::readString()
 	// stored in the file.
 	if (actualLen != (len-1))
 	{
-		fprintf(stderr, "Error: String mismatch at offset %d. Expected length %d but got %d\n", ptr_ - start_, len, actualLen);
+		fprintf(stderr, "Error: String mismatch at offset %d. Expected length %d but got %d\n", ptr_ - start_.get(), len, actualLen);
 		return "<error>";
 	}
 
@@ -147,13 +147,13 @@ XComPropertyList XComReader::readProperties(uint32_t dataLen)
 		}
 		else if (propType.compare("ArrayProperty") == 0) {
 			uint32_t arrayBound = readInt32();
-			unsigned char *arrayData = nullptr;
+			std::unique_ptr<unsigned char[]> arrayData;
 			if (propSize > 4) {
-				arrayData = new unsigned char[propSize - 4];
-				memcpy(arrayData, ptr_, propSize - 4);
+				arrayData = std::make_unique<unsigned char[]>(propSize - 4);
+				memcpy(arrayData.get(), ptr_, propSize - 4);
 				ptr_ += (propSize - 4);
 			}
-			prop = std::make_unique<XComArrayProperty>(name, propSize, arrayData, arrayBound, propSize == 4 ? 0 : (propSize - 4)/arrayBound);
+			prop = std::make_unique<XComArrayProperty>(name, propSize, std::move(arrayData), arrayBound);
 		}
 		else if (propType.compare("FloatProperty") == 0) {
 			float f = readFloat();
@@ -168,17 +168,17 @@ XComPropertyList XComReader::readProperties(uint32_t dataLen)
 			// Special case certain structs
 			if (structName.compare("Vector2D") == 0) {
 				assert(propSize == 8);
-				unsigned char* nativeData = new unsigned char[8];
-				memcpy(nativeData, ptr_, 8);
+				std::unique_ptr<unsigned char[]> nativeData = std::make_unique<unsigned char[]>(8);
+				memcpy(nativeData.get(), ptr_, 8);
 				ptr_ += 8;
-				prop = std::make_unique<XComStructProperty>(name, propSize, structName, nativeData, 8);
+				prop = std::make_unique<XComStructProperty>(name, propSize, structName, std::move(nativeData), 8);
 			} 
 			else if (structName.compare("Vector") == 0) {
 				assert(propSize == 12);
-				unsigned char * nativeData = new unsigned char[12];
-				memcpy(nativeData, ptr_, 12);
+				std::unique_ptr<unsigned char[]> nativeData = std::make_unique<unsigned char[]>(12);
+				memcpy(nativeData.get(), ptr_, 12);
 				ptr_ += 12;
-				prop = std::make_unique<XComStructProperty>(name, propSize, structName, nativeData, 12);
+				prop = std::make_unique<XComStructProperty>(name, propSize, structName, std::move(nativeData), 12);
 			}
 			else {
 				XComPropertyList structProps = readProperties(propSize);
@@ -200,7 +200,7 @@ XComPropertyList XComReader::readProperties(uint32_t dataLen)
 			}
 			else {
 				if (properties.back()->getName().compare(name) != 0) {
-					DBG("Static array index found but doesn't match last property at offset 0x%x\n", ptr_ - start_);
+					DBG("Static array index found but doesn't match last property at offset 0x%x\n", ptr_ - start_.get());
 				}
 
 				if (properties.back()->getKind() == XComProperty::Kind::StaticArrayProperty) {
@@ -241,11 +241,12 @@ XComCheckpointTable XComReader::readCheckpointTable()
 		chk.vector[0] = readFloat();
 		chk.vector[1] = readFloat();
 		chk.vector[2] = readFloat();
-		chk.rotator[0] = readFloat();
-		chk.rotator[1] = readFloat();
-		chk.rotator[2] = readFloat();
+		chk.rotator[0] = readInt32();
+		chk.rotator[1] = readInt32();
+		chk.rotator[2] = readInt32();
 		chk.className = readString();
 		chk.propLen = readInt32();
+		chk.padSize = 0;
 		const unsigned char* startPtr = ptr_;
 		chk.properties = readProperties(chk.propLen);
 		if (uint32_t(ptr_ - startPtr) < chk.propLen) {
@@ -253,7 +254,7 @@ XComCheckpointTable XComReader::readCheckpointTable()
 
 			for (unsigned int i = 0; i < chk.padSize; ++i) {
 				if (*ptr_++ != 0) {
-					DBG("Found non-zero padding byte at offset %x", (ptr_ - start_ - 1));
+					DBG("Found non-zero padding byte at offset %x", (offset() - 1));
 				}
 			}
 		}
@@ -309,14 +310,14 @@ XComNameTable XComReader::readNameTable()
 int32_t XComReader::getUncompressedSize()
 {
 	// The compressed data begins 1024 bytes into the file.
-	const unsigned char* p = start_ + 1024;
+	const unsigned char* p = start_.get() + 1024;
 	uint32_t compressedSize;
 	uint32_t uncompressedSize = 0;
 	do
 	{
 		// Expect the magic header value 0x9e2a83c1 at the start of each chunk
 		if (*(reinterpret_cast<const uint32_t*>(p)) != 0x9e2a83c1) {
-			fprintf(stderr, "Failed to find compressed chunk at offset 0x%08x", (p - start_));
+			fprintf(stderr, "Failed to find compressed chunk at offset 0x%08x", offset());
 			return -1;
 		}
 
@@ -328,7 +329,7 @@ int32_t XComReader::getUncompressedSize()
 
 		// Skip to next chunk - 24 bytes of this chunk header + compressedSize bytes later.
 		p += (compressedSize + 24);
-	} while (p - start_ < length_);
+	} while (static_cast<size_t>(p - start_.get()) < length_);
 
 	return uncompressedSize;
 }
@@ -336,16 +337,17 @@ int32_t XComReader::getUncompressedSize()
 void XComReader::getUncompressedData(unsigned char *buf)
 {
 	// Start back at the beginning of the compressed data.
-	const unsigned char *p = start_ + 1024;
+	const unsigned char *p = start_.get() + 1024;
 	unsigned char *outp = buf;
 	do
 	{
 		// Expect the magic header value 0x9e2a83c1 at the start of each chunk
-		if (*(reinterpret_cast<const uint32_t*>(p)) != 0x9e2a83c1) {
-			fprintf(stderr, "Failed to find compressed chunk at offset 0x%08x", (p - start_));
+		if (*(reinterpret_cast<const uint32_t*>(p)) != Chunk_Magic) {
+			fprintf(stderr, "Failed to find compressed chunk at offset 0x%08x", (p - start_.get()));
 			return;
 		}
 
+		printf("Found chunk at offset 0x%x\n", (p - start_.get()));
 		// Compressed size is at p+8
 		uint32_t compressedSize = *(reinterpret_cast<const unsigned long*>(p + 8));
 
@@ -368,7 +370,7 @@ void XComReader::getUncompressedData(unsigned char *buf)
 		// Skip to next chunk - 24 bytes of this chunk header + compressedSize bytes later.
 		p += (compressedSize + 24);
 		outp += uncompressedSize;
-	} while (p - start_ < length_);
+	} while (static_cast<size_t>(p - start_.get()) < length_);
 }
 
 XComSave XComReader::getSaveData()
@@ -393,12 +395,13 @@ XComSave XComReader::getSaveData()
 	getUncompressedData(uncompressedData);
 
 	// We're now done with the compressed file. Swap over to the uncompressed data
-	start_ = ptr_ = uncompressedData;
+	ptr_ = uncompressedData;
+	start_.reset(ptr_);
 	length_ = uncompressedSize;
 	fwrite(uncompressedData, 1, uncompressedSize, outFile);
 	fclose(outFile);
 	save.actorTable = readActorTable();
-	DBG("Finished reading actor table at offset %x\n", ptr_ - start_);
+	DBG("Finished reading actor table at offset %x\n", offset());
 	// Jump back to here after each chunk
 	do {
 		XComCheckpointChunk chunk;
@@ -412,7 +415,7 @@ XComSave XComReader::getSaveData()
 		
 		chunk.unknownInt2 = readInt32();
 		chunk.checkpointTable = readCheckpointTable();
-		DBG("Finished reading checkpoint table at offset %x\n", ptr_ - start_);
+		DBG("Finished reading checkpoint table at offset %x\n", offset());
 
 		uint32_t nameTableLen = readInt32();
 		assert(nameTableLen == 0);
@@ -426,13 +429,13 @@ XComSave XComReader::getSaveData()
 
 		chunk.className = readString();
 		chunk.actorTable = readActorTable();
-		DBG("Finished reading second actor table at offset %x\n", ptr_ - start_);
+		DBG("Finished reading second actor table at offset %x\n", offset());
 
 		chunk.unknownInt3 = readInt32();
 
 		XComActorTemplateTable actorTemplateTable = readActorTemplateTable(); // (only seems to be present for tactical saves?)
 		assert(actorTemplateTable.size() == 0);
-		DBG("Finished reading actor template table at offset %x\n", ptr_ - start_);
+		DBG("Finished reading actor template table at offset %x\n", offset());
 
 		chunk.displayName = readString(); //unknown (game name)
 		chunk.mapName = readString(); //unknown (map name)
@@ -440,6 +443,6 @@ XComSave XComReader::getSaveData()
 
 		save.checkpoints.push_back(std::move(chunk));
 	}
-	while ((ptr_ - start_ < length_));
+	while ((static_cast<size_t>(offset()) < length_));
 	return save;
 }

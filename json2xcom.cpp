@@ -1,11 +1,10 @@
 #include "xcom.h"
 #include "xcomwriter.h"
 #include "json11.hpp"
+#include "util.h"
 
 #include <iostream>
-
-#include <windows.h>
-#include <wincrypt.h>
+#include <cassert>
 
 using namespace json11;
 
@@ -109,19 +108,38 @@ XComActorTable buildActorTable(const Json& json)
 	return table;
 }
 
-std::array<float, 3> buildFloatArray(const Json& json)
+template <typename T>
+static T getValueFromJson(const Json& json);
+
+template <>
+static int getValueFromJson(const Json& json)
 {
-	std::array<float, 3> arr;
+	return json.int_value();
+}
+
+template <>
+static float getValueFromJson(const Json& json)
+{
+	return static_cast<float>(json.number_value());
+}
+
+
+template <typename T>
+std::array<T, 3> buildArray(const Json& json)
+{
+	std::array<T, 3> arr;
 	if (json.array_items().size() != 3) {
 		throw std::exception("Error reading json file: format mismatch in vector/rotator array");
 	}
 
 	for (int i = 0; i < 3; ++i) {
-		arr[i] = static_cast<float>(json.array_items()[i].number_value());
+		arr[i] = getValueFromJson<T>(json.array_items()[i]);
 	}
 
 	return arr;
 }
+
+
 
 XComPropertyPtr buildIntProperty(const Json& json)
 {
@@ -241,15 +259,12 @@ XComPropertyPtr buildStructProperty(const Json& json)
 		throw std::exception("Error reading json file: format mismatch in struct property");
 	}
 
-	if (json["native_data"].string_value() != "") {
-		unsigned long dataLen;
-		unsigned char *data;
-
-		CryptStringToBinary(json["native_data"].string_value().c_str(), 0, CRYPT_STRING_HEXRAW | CRYPT_STRING_NOCRLF, nullptr, &dataLen, nullptr, nullptr);
-		data = new unsigned char[dataLen];
-		CryptStringToBinary(json["native_data"].string_value().c_str(), 0, CRYPT_STRING_HEXRAW | CRYPT_STRING_NOCRLF, data, &dataLen, nullptr, nullptr);
-
-		return std::make_unique<XComStructProperty>(json["name"].string_value(), json["size"].int_value(), json["struct_name"].string_value(), data, dataLen);
+	std::unique_ptr<unsigned char[]> data;
+	const std::string & nativeDataStr = json["native_data"].string_value();
+	if (nativeDataStr != "") {
+		uint32_t dataLen = nativeDataStr.length() / 2;
+		data = fromHex(nativeDataStr);
+		return std::make_unique<XComStructProperty>(json["name"].string_value(), json["size"].int_value(), json["struct_name"].string_value(), std::move(data), dataLen);
 	}
 	else {
 		XComPropertyList props = buildPropertyList(json["properties"]);
@@ -264,7 +279,6 @@ XComPropertyPtr buildArrayProperty(const Json& json)
 		{ "name", Json::STRING },
 		{ "size", Json::NUMBER },
 		{ "array_bound", Json::NUMBER },
-		{ "element_size", Json::NUMBER },
 		{ "data", Json::STRING },
 	};
 
@@ -272,16 +286,15 @@ XComPropertyPtr buildArrayProperty(const Json& json)
 		throw std::exception("Error reading json file: format mismatch in array property");
 	}
 
-	unsigned long dataLen = 0;
-	unsigned char *data = nullptr;
+	const std::string & dataStr = json["data"].string_value();
+	std::unique_ptr<unsigned char[]> data;
 
-	if (json["data"].string_value().length() > 0) {
-		CryptStringToBinary(json["data"].string_value().c_str(), 0, CRYPT_STRING_HEXRAW | CRYPT_STRING_NOCRLF, nullptr, &dataLen, nullptr, nullptr);
-		data = new unsigned char[dataLen];
-		CryptStringToBinary(json["data"].string_value().c_str(), 0, CRYPT_STRING_HEXRAW | CRYPT_STRING_NOCRLF, data, &dataLen, nullptr, nullptr);
+	if (dataStr.length() > 0) {
+		assert((dataStr.length() / 2) == (json["size"].int_value() - 4));
+		data = fromHex(dataStr);
 	}
 
-	return std::make_unique<XComArrayProperty>(json["name"].string_value(), json["size"].int_value(), data, json["array_bound"].int_value(), json["element_size"].int_value());
+	return std::make_unique<XComArrayProperty>(json["name"].string_value(), json["size"].int_value(), std::move(data), json["array_bound"].int_value());
 }
 
 XComPropertyPtr buildStaticArrayProperty(const Json& json)
@@ -352,8 +365,8 @@ XComCheckpoint buildCheckpoint(const Json& json)
 
 	chk.name = json["name"].string_value();
 	chk.instanceName = json["instance_name"].string_value();
-	chk.vector = buildFloatArray(json["vector"]);
-	chk.rotator = buildFloatArray(json["rotator"]);
+	chk.vector = buildArray<float>(json["vector"]);
+	chk.rotator = buildArray<int>(json["rotator"]);
 	chk.className = json["class_name"].string_value();
 	chk.propLen = json["properties_length"].int_value();
 	chk.properties = buildPropertyList(json["properties"]);
@@ -510,7 +523,11 @@ int main(int argc, char *argv[])
 	try {
 		XComSave save = buildSave(jsonsave);
 		XComWriter writer(std::move(save));
-		std::unique_ptr<unsigned char[]> buf = writer.getSaveData();
+		Buffer b = writer.getSaveData();
+
+		FILE *fp = fopen(outfile, "wb");
+		fwrite(b.buf.get(), 1, b.len, fp);
+		fclose(fp);
 	}
 	catch (std::exception e)
 	{
