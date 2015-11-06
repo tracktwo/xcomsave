@@ -18,6 +18,9 @@ struct Buffer
 
 unsigned int crc32b(const unsigned char *message, long len);
 
+std::string iso8859_1toutf8(const std::string& in);
+std::string utf8toiso8859_1(const std::string& in);
+
 std::string toHex(const unsigned char *data, uint32_t dataLen);
 std::unique_ptr<unsigned char[]> fromHex(const std::string& str);
 

@@ -24,7 +24,7 @@ bool XComReader::readBool()
 	return readInt32() != 0;
 }
 
-const char* XComReader::readString()
+std::string XComReader::readString()
 {
 	uint32_t len = readInt32();
 	if (len == 0) {
@@ -42,7 +42,7 @@ const char* XComReader::readString()
 	}
 
 	ptr_ += len;
-	return str;
+	return iso8859_1toutf8(str);
 }
 
 XComSaveHeader XComReader::readHeader()
@@ -65,6 +65,22 @@ XComSaveHeader XComReader::readHeader()
 	hdr.dlcString = readString();
 	hdr.language = readString();
 	hdr.crc = readInt32();
+
+	// Compute the CRC of the header
+	ptr_ = start_.get() + 1016;
+	uint32_t hdrSize = readInt32();
+	uint32_t hdrCrc = readInt32();
+	uint32_t computedHeaderCrc = crc32b(start_.get(), hdrSize);
+	if (hdrCrc != computedHeaderCrc)
+	{
+		throw std::exception("CRC mismatch in header. Bad save?");
+	}
+
+	uint32_t compressedCrc = crc32b(start_.get() + 1024, length_ - 1024);
+	if (hdr.crc != compressedCrc)
+	{
+		throw std::exception("CRC mismatch in compressed data. Bad save?");
+	}
 	return hdr;
 }
 
@@ -361,6 +377,11 @@ void XComReader::getUncompressedData(unsigned char *buf)
 			return;
 		}
 
+		unsigned char * wrkbuf = new unsigned char[LZO1X_1_MEM_COMPRESS];
+		
+		unsigned long tmpSize = decompSize + decompSize / 16  + 64 + 3;
+		unsigned char * tmpBuf = new unsigned char[tmpSize];
+
 		if (decompSize != uncompressedSize)
 		{
 			fprintf(stderr, "Failed to decompress chunk!");
@@ -407,8 +428,8 @@ XComSave XComReader::getSaveData()
 		XComCheckpointChunk chunk;
 		chunk.unknownInt1 = readInt32();
 		chunk.gameType = readString();
-		const char *none = readString();
-		if (strcmp(none, "None") != 0) {
+		std::string none = readString();
+		if (none != "None") {
 			fprintf(stderr, "Error locating 'None' after actor table.\n");
 			return{};
 		}

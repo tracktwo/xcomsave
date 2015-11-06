@@ -26,10 +26,11 @@ void XComWriter::writeString(const std::string& str)
 	}
 	else {
 		// Ensure we have space for the string size + string data + trailing null
-		ensureSpace(str.length() + 5);
-		writeInt(str.length() + 1);
-		memcpy(buf_, str.c_str(), str.length());
-		buf_ += str.length();
+		std::string conv = utf8toiso8859_1(str);
+		ensureSpace(conv.length() + 5);
+		writeInt(conv.length() + 1);
+		memcpy(buf_, conv.c_str(), conv.length());
+		buf_ += conv.length();
 		*buf_++ = 0;
 	}
 }
@@ -75,7 +76,16 @@ void XComWriter::writeHeader(const XComSaveHeader& header)
 	writeBool(header.autoSave);
 	writeString(header.dlcString);
 	writeString(header.language);
-	writeInt(header.crc);
+
+	// Compute the CRC for the compressed data.
+	uint32_t compressedCrc = crc32b(start_ + 1024, bufLen_ - 1024);
+	writeInt(compressedCrc);
+	
+	uint32_t hdrLen = buf_ - start_ + 4;
+	buf_ = start_ + 1016;
+	writeInt(hdrLen);
+	uint32_t hdrCrc = crc32b(start_, hdrLen);
+	writeInt(hdrCrc);
 }
 
 void XComWriter::writeActorTable(const XComActorTable& actorTable)
@@ -331,8 +341,6 @@ Buffer XComWriter::getSaveData()
 {
 	start_ = buf_ = new unsigned char[initial_size];
 	bufLen_ = initial_size;
-
-	writeHeader(save_.header);
 
 	// Write out the initial actor table
 	writeActorTable(save_.actorTable);

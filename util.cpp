@@ -2,6 +2,7 @@
 #include <string>
 #include <exception>
 #include <memory>
+#include <cassert>
 
 // CRC Table for polynomial 0x04c11db7
 static const unsigned long crc32_table_b[256] =
@@ -111,4 +112,43 @@ std::unique_ptr<unsigned char[]> fromHex(const std::string &str)
 	}
 	
 	return data;
+}
+
+std::string iso8859_1toutf8(const std::string& in)
+{
+	std::string out;
+	const unsigned char *p = reinterpret_cast<const unsigned char *>(in.c_str());
+	
+	for (size_t i = 0; i < in.length(); ++i) {
+		unsigned char p = static_cast<unsigned char>(in[i]);
+		if (p < 0x80) {
+			out += static_cast<char>(p);
+		}
+		else {
+			out += static_cast<char>(0xc0 | (p >> 6));
+			out += static_cast<char>(0x80 | (p & 0x3f));
+		}
+	}
+	return out;
+}
+
+std::string utf8toiso8859_1(const std::string& in)
+{
+	std::string out;
+	const unsigned char *p = reinterpret_cast<const unsigned char *>(in.c_str());
+
+	for (size_t i = 0; i < in.length(); ++i) {
+		unsigned char p = static_cast<unsigned char>(in[i]);
+
+		if (p < 0x80) {
+			out += static_cast<char>(p);
+		}
+		else {
+			assert((p & 0xc0) == 0xc0);
+			unsigned char p2 = static_cast<unsigned char>(in[++i]);
+			out += static_cast<char>((p << 6) | (p2 & 0x3f));
+		}
+	}
+
+	return out;
 }

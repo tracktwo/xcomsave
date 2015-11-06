@@ -26,7 +26,7 @@ private:
 
 	uint32_t readInt32();
 	float readFloat();
-	const char* readString();
+	std::string readString();
 	bool readBool();
 	XComSaveHeader readHeader();
 	XComActorTable readActorTable();
