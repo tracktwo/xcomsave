@@ -4,16 +4,15 @@
 
 void XComWriter::ensureSpace(uint32_t count)
 {
-	ptrdiff_t currentCount = buf_ - start_;
+	ptrdiff_t currentCount = offset();
 
 	if ((currentCount + count) > bufLen_) {
 		uint32_t newLen = bufLen_ * 2;
 		unsigned char * newBuf = new unsigned char[newLen];
-		memcpy(newBuf, start_, currentCount);
-		delete[] start_;
-		start_ = newBuf;
+		memcpy(newBuf, start_.get(), currentCount);
+		start_.reset(newBuf);
 		bufLen_ = newLen;
-		buf_ = start_ + currentCount;
+		buf_ = start_.get() + currentCount;
 	}
 
 }
@@ -66,25 +65,25 @@ void XComWriter::writeHeader(const XComSaveHeader& header)
 {
 	writeInt(header.version);
 	writeInt(0);
-	writeInt(header.gameNumber);
-	writeInt(header.saveNumber);
-	writeString(header.saveDescription);
+	writeInt(header.game_number);
+	writeInt(header.save_number);
+	writeString(header.save_description);
 	writeString(header.time);
-	writeString(header.mapCommand);
-	writeBool(header.tacticalSave);
+	writeString(header.map_command);
+	writeBool(header.tactical_save);
 	writeBool(header.ironman);
-	writeBool(header.autoSave);
-	writeString(header.dlcString);
+	writeBool(header.autosave);
+	writeString(header.dlc);
 	writeString(header.language);
 
 	// Compute the CRC for the compressed data.
-	uint32_t compressedCrc = crc32b(start_ + 1024, bufLen_ - 1024);
+	uint32_t compressedCrc = crc32b(start_.get() + 1024, bufLen_ - 1024);
 	writeInt(compressedCrc);
 	
-	uint32_t hdrLen = buf_ - start_ + 4;
-	buf_ = start_ + 1016;
+	uint32_t hdrLen = buf_ - start_.get() + 4;
+	buf_ = start_.get() + 1016;
 	writeInt(hdrLen);
-	uint32_t hdrCrc = crc32b(start_, hdrLen);
+	uint32_t hdrCrc = crc32b(start_.get(), hdrLen);
 	writeInt(hdrCrc);
 }
 
@@ -276,7 +275,7 @@ void XComWriter::writeCheckpointChunks(const XComCheckpointChunkTable& chunks)
 
 Buffer XComWriter::compress()
 {
-	int totalBufSize = buf_ - start_;
+	int totalBufSize = offset();
 	// Allocate a new buffer to hold the compressed data. Just allocate
 	// as much as the uncompressed buffer since we don't know how big
 	// it will be, but it'll presumably be smaller.
@@ -289,7 +288,7 @@ Buffer XComWriter::compress()
 
 	// The "flags" (?) value is always 20000, even for trailing chunks
 	static const int chunkFlags = 0x20000;
-	unsigned char *bufPtr = start_;
+	unsigned char *bufPtr = start_.get();
 	// Reserve 1024 bytes at the start of the compressed buffer for the header.
 	unsigned char *compressedPtr = b.buf.get() + 1024;
 	int bytesLeft = totalBufSize;
@@ -301,10 +300,10 @@ Buffer XComWriter::compress()
 
 	do
 	{
-		int uncompressedSize = (bytesLeft < chunkSize) ? bytesLeft : chunkSize;
+		int uncompressed_size = (bytesLeft < chunkSize) ? bytesLeft : chunkSize;
 		unsigned long bytesCompressed = bytesLeft - 24;
 		// Compress the chunk
-		int ret = lzo1x_1_compress(bufPtr, uncompressedSize, compressedPtr + 24, &bytesCompressed, wrkMem.get());
+		int ret = lzo1x_1_compress(bufPtr, uncompressed_size, compressedPtr + 24, &bytesCompressed, wrkMem.get());
 		if (ret != LZO_E_OK) {
 			fprintf(stderr, "Error compressing data: %d", ret);
 		}
@@ -318,13 +317,13 @@ Buffer XComWriter::compress()
 		*reinterpret_cast<int*>(compressedPtr) = bytesCompressed;
 		compressedPtr += 4;
 		// Write the uncompressed size
-		*reinterpret_cast<int*>(compressedPtr) = uncompressedSize;
+		*reinterpret_cast<int*>(compressedPtr) = uncompressed_size;
 		compressedPtr += 4;
 		// Write the compressed size
 		*reinterpret_cast<int*>(compressedPtr) = bytesCompressed;
 		compressedPtr += 4;
 		// Write the uncompressed size
-		*reinterpret_cast<int*>(compressedPtr) = uncompressedSize;
+		*reinterpret_cast<int*>(compressedPtr) = uncompressed_size;
 		compressedPtr += 4;
 
 		compressedPtr += bytesCompressed;
@@ -339,7 +338,8 @@ Buffer XComWriter::compress()
 
 Buffer XComWriter::getSaveData()
 {
-	start_ = buf_ = new unsigned char[initial_size];
+	start_ = std::make_unique<unsigned char[]>(initial_size);
+	buf_ = start_.get();
 	bufLen_ = initial_size;
 
 	// Write out the initial actor table
@@ -353,17 +353,21 @@ Buffer XComWriter::getSaveData()
 	if (outFile == nullptr) {
 		throw std::exception("Failed to open output file");
 	}
-	fwrite(start_, 1, buf_ - start_, outFile);
+	fwrite(start_.get(), 1, offset(), outFile);
 	fclose(outFile);
 
 	Buffer b = compress();
 
 	// Reset the internal buffer to the compressed data to write the header
-	delete[] start_;
-	start_ = b.buf.get();
-	buf_ = start_;
+	start_ = std::move(b.buf);
+	buf_ = start_.get();
 	bufLen_ = b.len;
 
 	writeHeader(save_.header);
+
+	// Move the save data back into the buffer to return
+	b.buf = std::move(start_);
+	buf_ = nullptr;
+	bufLen_ = 0;
 	return b;
 }

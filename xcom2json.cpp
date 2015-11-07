@@ -209,16 +209,16 @@ Json buildJson(const XComSave& save)
 
 	Json header = Json::object{ 
 		{ "version", (int)hdr.version },
-		{ "uncompressed_size", (int)hdr.uncompressedSize },
-		{ "game_number", (int) hdr.gameNumber },
-		{ "save_number", (int) hdr.saveNumber },
-		{ "save_description", hdr.saveDescription },
+		{ "uncompressed_size", (int)hdr.uncompressed_size },
+		{ "game_number", (int) hdr.game_number },
+		{ "save_number", (int) hdr.save_number },
+		{ "save_description", hdr.save_description },
 		{ "time", hdr.time },
-		{ "map_command", hdr.mapCommand },
-		{ "tactical_save", hdr.tacticalSave },
+		{ "map_command", hdr.map_command },
+		{ "tactical_save", hdr.tactical_save },
 		{ "ironman", hdr.ironman },
-		{ "autosave", hdr.autoSave },
-		{ "dlc", hdr.dlcString },
+		{ "autosave", hdr.autosave },
+		{ "dlc", hdr.dlc },
 		{ "language", hdr.language }
 	};
 
@@ -304,11 +304,18 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
-	XComReader reader{ std::move(fileBuf) };
-	XComSave save = reader.getSaveData();
-	Json jsonsave = buildJson(save);
-	std::string str = jsonsave.dump();
-	FILE *fp = fopen(outfile, "w");
-	fwrite(str.c_str(), 1, str.length(), fp);
-	fclose(fp);
+	try {
+		XComReader reader{ std::move(fileBuf) };
+		XComSave save = reader.getSaveData();
+		Json jsonsave = buildJson(save);
+		std::string str = jsonsave.dump();
+		FILE *fp = fopen(outfile, "w");
+		fwrite(str.c_str(), 1, str.length(), fp);
+		fclose(fp);
+	}
+	catch (std::exception e)
+	{
+		fprintf(stderr, e.what());
+		return 1;
+	}
 }

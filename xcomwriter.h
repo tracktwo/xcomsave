@@ -23,6 +23,10 @@ public:
 	friend PropertyWriterVisitor;
 
 private:
+	uint32_t offset() const { 
+		return buf_ - start_.get(); 
+	}
+
 	void ensureSpace(uint32_t count);
 	void writeString(const std::string& str);
 	void writeInt(uint32_t val);
@@ -39,7 +43,7 @@ private:
 	Buffer compress();
 private:
 	XComSave save_;
-	unsigned char *start_;
+	std::unique_ptr<unsigned char[]> start_;
 	unsigned char* buf_;
 	uint32_t bufLen_;
 };

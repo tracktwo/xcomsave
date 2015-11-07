@@ -34,7 +34,7 @@ private:
 	std::vector<std::unique_ptr<XComProperty>> readProperties(uint32_t dataLen);
 	XComActorTemplateTable readActorTemplateTable();
 	XComNameTable readNameTable();
-	int32_t getUncompressedSize();
+	int32_t getuncompressed_size();
 	void getUncompressedData(unsigned char *);
 
 private:

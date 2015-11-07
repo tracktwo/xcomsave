@@ -53,18 +53,18 @@ XComSaveHeader XComReader::readHeader()
 		fprintf(stderr, "Error: Data does not appear to be an xcom save: expected file version 16 but got %d\n", hdr.version);
 		return {0};
 	}
-	hdr.uncompressedSize = readInt32();
-	hdr.gameNumber = readInt32();
-	hdr.saveNumber = readInt32();
-	hdr.saveDescription = readString();
+	hdr.uncompressed_size = readInt32();
+	hdr.game_number = readInt32();
+	hdr.save_number = readInt32();
+	hdr.save_description = readString();
 	hdr.time = readString();
-	hdr.mapCommand = readString();
-	hdr.tacticalSave = readBool();
+	hdr.map_command = readString();
+	hdr.tactical_save = readBool();
 	hdr.ironman = readBool();
-	hdr.autoSave = readBool();
-	hdr.dlcString = readString();
+	hdr.autosave = readBool();
+	hdr.dlc = readString();
 	hdr.language = readString();
-	hdr.crc = readInt32();
+	uint32_t compressedCrc = readInt32();
 
 	// Compute the CRC of the header
 	ptr_ = start_.get() + 1016;
@@ -76,8 +76,8 @@ XComSaveHeader XComReader::readHeader()
 		throw std::exception("CRC mismatch in header. Bad save?");
 	}
 
-	uint32_t compressedCrc = crc32b(start_.get() + 1024, length_ - 1024);
-	if (hdr.crc != compressedCrc)
+	uint32_t computedCompressedCrc = crc32b(start_.get() + 1024, length_ - 1024);
+	if (computedCompressedCrc != compressedCrc)
 	{
 		throw std::exception("CRC mismatch in compressed data. Bad save?");
 	}
@@ -323,12 +323,12 @@ XComNameTable XComReader::readNameTable()
 	return nameTable;
 }
 
-int32_t XComReader::getUncompressedSize()
+int32_t XComReader::getuncompressed_size()
 {
 	// The compressed data begins 1024 bytes into the file.
 	const unsigned char* p = start_.get() + 1024;
 	uint32_t compressedSize;
-	uint32_t uncompressedSize = 0;
+	uint32_t uncompressed_size = 0;
 	do
 	{
 		// Expect the magic header value 0x9e2a83c1 at the start of each chunk
@@ -341,13 +341,13 @@ int32_t XComReader::getUncompressedSize()
 		compressedSize = *(reinterpret_cast<const unsigned long*>(p + 8));
 
 		// Uncompressed size is at p+12
-		uncompressedSize += *(reinterpret_cast<const unsigned long*>(p + 12));
+		uncompressed_size += *(reinterpret_cast<const unsigned long*>(p + 12));
 
 		// Skip to next chunk - 24 bytes of this chunk header + compressedSize bytes later.
 		p += (compressedSize + 24);
 	} while (static_cast<size_t>(p - start_.get()) < length_);
 
-	return uncompressedSize;
+	return uncompressed_size;
 }
 
 void XComReader::getUncompressedData(unsigned char *buf)
@@ -368,9 +368,9 @@ void XComReader::getUncompressedData(unsigned char *buf)
 		uint32_t compressedSize = *(reinterpret_cast<const unsigned long*>(p + 8));
 
 		// Uncompressed size is at p+12
-		uint32_t uncompressedSize = *(reinterpret_cast<const unsigned long*>(p + 12));
+		uint32_t uncompressed_size = *(reinterpret_cast<const unsigned long*>(p + 12));
 		
-		unsigned long decompSize = uncompressedSize;
+		unsigned long decompSize = uncompressed_size;
 
 		if (lzo1x_decompress_safe(p + 24, compressedSize, outp, &decompSize, nullptr) != LZO_E_OK) {
 			fprintf(stderr, "LZO decompress of save data failed\n");
@@ -382,7 +382,7 @@ void XComReader::getUncompressedData(unsigned char *buf)
 		unsigned long tmpSize = decompSize + decompSize / 16  + 64 + 3;
 		unsigned char * tmpBuf = new unsigned char[tmpSize];
 
-		if (decompSize != uncompressedSize)
+		if (decompSize != uncompressed_size)
 		{
 			fprintf(stderr, "Failed to decompress chunk!");
 			return;
@@ -390,7 +390,7 @@ void XComReader::getUncompressedData(unsigned char *buf)
 
 		// Skip to next chunk - 24 bytes of this chunk header + compressedSize bytes later.
 		p += (compressedSize + 24);
-		outp += uncompressedSize;
+		outp += uncompressed_size;
 	} while (static_cast<size_t>(p - start_.get()) < length_);
 }
 
@@ -407,19 +407,19 @@ XComSave XComReader::getSaveData()
 	int totalUncompressed = 0;
 	save.header = readHeader();
 
-	uint32_t uncompressedSize = getUncompressedSize();
-	if (uncompressedSize < 0) {
+	uint32_t uncompressed_size = getuncompressed_size();
+	if (uncompressed_size < 0) {
 		return {};
 	}
 	
-	unsigned char *uncompressedData = new unsigned char[uncompressedSize];
+	unsigned char *uncompressedData = new unsigned char[uncompressed_size];
 	getUncompressedData(uncompressedData);
 
 	// We're now done with the compressed file. Swap over to the uncompressed data
 	ptr_ = uncompressedData;
 	start_.reset(ptr_);
-	length_ = uncompressedSize;
-	fwrite(uncompressedData, 1, uncompressedSize, outFile);
+	length_ = uncompressed_size;
+	fwrite(uncompressedData, 1, uncompressed_size, outFile);
 	fclose(outFile);
 	save.actorTable = readActorTable();
 	DBG("Finished reading actor table at offset %x\n", offset());

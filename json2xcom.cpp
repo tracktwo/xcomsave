@@ -64,16 +64,16 @@ XComSaveHeader buildHeader(const Json& json)
 	}
 
 	hdr.version = json["version"].int_value();
-	hdr.uncompressedSize = json["uncompressed_size"].int_value();
-	hdr.gameNumber = json["game_number"].int_value();
-	hdr.saveNumber = json["save_number"].int_value();
-	hdr.saveDescription = json["save_description"].string_value();
+	hdr.uncompressed_size = json["uncompressed_size"].int_value();
+	hdr.game_number = json["game_number"].int_value();
+	hdr.save_number = json["save_number"].int_value();
+	hdr.save_description = json["save_description"].string_value();
 	hdr.time = json["time"].string_value();
-	hdr.mapCommand = json["map_command"].string_value();
-	hdr.tacticalSave = json["tactical_save"].bool_value();
+	hdr.map_command = json["map_command"].string_value();
+	hdr.tactical_save = json["tactical_save"].bool_value();
 	hdr.ironman = json["ironman"].bool_value();
-	hdr.autoSave = json["autosave"].bool_value();
-	hdr.dlcString = json["dlc"].string_value();
+	hdr.autosave = json["autosave"].bool_value();
+	hdr.dlc = json["dlc"].string_value();
 	hdr.language = json["language"].string_value();
 
 	return hdr;
