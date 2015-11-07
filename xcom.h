@@ -8,6 +8,8 @@
 #include <algorithm>
 #include <exception>
 
+#include "util.h"
+
 // The magic number that occurs at the begining of each compressed chunk.
 static const int Chunk_Magic = 0x9e2a83c1;
 
@@ -102,7 +104,7 @@ struct XComProperty
 		StaticArrayProperty
 	};
 
-	XComProperty(const std::string &n, uint32_t s, Kind k) : name(n), size(s), kind(k) {}
+	XComProperty(const std::string &n, Kind k) : name(n), kind(k) {}
 
 	Kind getKind() const {
 		return kind;
@@ -112,17 +114,19 @@ struct XComProperty
 		return name;
 	}
 
-	uint32_t getSize() const {
-		return size;
-	}
+	virtual uint32_t size() const = 0;
+
+	virtual uint32_t full_size() const;
 
 	virtual void accept(XComPropertyVisitor* v) = 0;
 
 protected:
 	std::string name;
-	uint32_t size;
 	Kind kind;
 };
+
+std::string getXcomKindString(XComProperty::Kind kind);
+
 
 // Properties are polymorphic types and are usually referenced by 
 // XComPropertyPtr values which are simply unique_ptrs to a property.
@@ -160,10 +164,14 @@ using XComPropertyList = std::vector<XComPropertyPtr>;
 // TODO Replace the data with the actor references.
 struct XComObjectProperty : public XComProperty
 {
-	XComObjectProperty(const std::string &n, uint32_t s, std::vector<unsigned char>&& d) :
-		XComProperty(n, s, Kind::ObjectProperty), data(std::move(d)) {}
+	XComObjectProperty(const std::string &n, std::vector<unsigned char>&& d) :
+		XComProperty(n, Kind::ObjectProperty), data(std::move(d)) {}
 
 	std::vector<unsigned char> data;
+
+	uint32_t size() const {
+		return 8;
+	}
 
 	void accept(XComPropertyVisitor *v) {
 		v->visitObject(this);
@@ -173,10 +181,14 @@ struct XComObjectProperty : public XComProperty
 // An int property contains a 32-bit signed integer value.
 struct XComIntProperty : public XComProperty
 {
-	XComIntProperty(const std::string& n, uint32_t s, int32_t v) :
-		XComProperty(n, s, Kind::IntProperty), value(v) {}
+	XComIntProperty(const std::string& n, int32_t v) :
+		XComProperty(n, Kind::IntProperty), value(v) {}
 
 	int32_t value;
+
+	uint32_t size() const {
+		return 4;
+	}
 
 	void accept(XComPropertyVisitor *v) {
 		v->visitInt(this);
@@ -186,10 +198,20 @@ struct XComIntProperty : public XComProperty
 // A bool property contains a boolean value.
 struct XComBoolProperty : public XComProperty
 {
-	XComBoolProperty(const std::string &n, uint32_t s, bool v) :
-		XComProperty(n, s, Kind::BoolProperty), value(v) {}
+	XComBoolProperty(const std::string &n, bool v) :
+		XComProperty(n, Kind::BoolProperty), value(v) {}
 
 	bool value;
+
+	uint32_t size() const {
+
+		// Bool properties report as size 0
+		return 0;
+	}
+
+	virtual uint32_t full_size() const {
+		return XComProperty::full_size() + 1;
+	}
 
 	void accept(XComPropertyVisitor *v) {
 		v->visitBool(this);
@@ -199,10 +221,14 @@ struct XComBoolProperty : public XComProperty
 // A float property contains a single-precision floating point value.
 struct XComFloatProperty : public XComProperty
 {
-	XComFloatProperty(const std::string &n, uint32_t s, float f) :
-		XComProperty(n, s, Kind::FloatProperty), value(f) {}
+	XComFloatProperty(const std::string &n, float f) :
+		XComProperty(n, Kind::FloatProperty), value(f) {}
 
 	float value;
+
+	uint32_t size() const {
+		return 4;
+	}
 
 	void accept(XComPropertyVisitor *v) {
 		v->visitFloat(this);
@@ -215,10 +241,19 @@ struct XComFloatProperty : public XComProperty
 // crash. Note that non-INT saves likely use some other encoding for the strings, but I do not know which.
 struct XComStringProperty : public XComProperty
 {
-	XComStringProperty(const std::string& n, uint32_t sz, const std::string& s) :
-		XComProperty(n, sz, Kind::StrProperty), str(s) {}
+	XComStringProperty(const std::string& n, const std::string& s) :
+		XComProperty(n, Kind::StrProperty), str(s) {}
 
 	std::string str;
+
+	uint32_t size() const {
+		if (str.empty()) {
+			return 4;
+		}
+		// 4 for string length + 1 for terminating null. Make sure to use the ISO-8859-1 encoded length!
+		std::string tmp = utf8toiso8859_1(str);
+		return tmp.length() + 5;
+	}
 
 	void accept(XComPropertyVisitor *v) {
 		v->visitString(this);
@@ -240,11 +275,16 @@ struct XComStringProperty : public XComProperty
 //    looked up in the actor table.
 struct XComArrayProperty : public XComProperty
 {
-	XComArrayProperty(const std::string& n, uint32_t s, std::unique_ptr<unsigned char[]>&& a, uint32_t b) :
-		XComProperty(n, s, Kind::ArrayProperty), data(std::move(a)), arrayBound(b) {}
+	XComArrayProperty(const std::string& n, std::unique_ptr<unsigned char[]>&& a, uint32_t dl, uint32_t b) :
+		XComProperty(n, Kind::ArrayProperty), data(std::move(a)), data_length(dl), arrayBound(b) {}
 
 	std::unique_ptr<unsigned char[]> data;
 	uint32_t arrayBound;
+	uint32_t data_length;
+
+	uint32_t size() const {
+		return 4 + data_length;
+	}
 
 	void accept(XComPropertyVisitor *v) {
 		v->visitArray(this);
@@ -255,12 +295,22 @@ struct XComArrayProperty : public XComProperty
 // am not entirely sure how to interpret, but is commonly used in LW extended enums.
 struct XComByteProperty : public XComProperty
 {
-	XComByteProperty(const std::string& n, uint32_t s, const std::string &et, const std::string &ev, uint32_t i) :
-		XComProperty(n, s, Kind::ByteProperty), enumType(et), enumVal(ev), extVal(i) {}
+	XComByteProperty(const std::string& n,const std::string &et, const std::string &ev, uint32_t i) :
+		XComProperty(n, Kind::ByteProperty), enumType(et), enumVal(ev), extVal(i) {}
 
 	std::string enumType;
 	std::string enumVal;
 	uint32_t extVal;
+
+	uint32_t size() const {
+		// 2 * string length + 2 * trailing null + int for extVal = 8 + 2 + 4 = 14.
+		return /*enumType.length() + */enumVal.length() + 5 + 4;
+	}
+
+	virtual uint32_t full_size() const {
+		// full size must also include the length of the inner "unknown" value and the enum Type string length.
+		return XComProperty::full_size() + enumType.length() + 5  + 4;
+	}
 
 	void accept(XComPropertyVisitor *v) {
 		v->visitByte(this);
@@ -270,16 +320,39 @@ struct XComByteProperty : public XComProperty
 // A struct property. Contains a nested list of properties for the struct elements.
 struct XComStructProperty : public XComProperty
 {
-	XComStructProperty(const std::string &n, uint32_t s, const std::string &sn, XComPropertyList &&propList) :
-		XComProperty(n, s, Kind::StructProperty), structName(sn), structProps(std::move(propList)), nativeData(), nativeDataLen(0) {}
+	XComStructProperty(const std::string &n, const std::string &sn, XComPropertyList &&propList) :
+		XComProperty(n, Kind::StructProperty), structName(sn), structProps(std::move(propList)), nativeData(), nativeDataLen(0) {}
 
-	XComStructProperty(const std::string& n, uint32_t s, const std::string &sn, std::unique_ptr<unsigned char[]> &&nd, uint32_t l) :
-		XComProperty(n, s, Kind::StructProperty), structName(sn), nativeData(std::move(nd)), nativeDataLen(l) {}
+	XComStructProperty(const std::string& n, const std::string &sn, std::unique_ptr<unsigned char[]> &&nd, uint32_t l) :
+		XComProperty(n, Kind::StructProperty), structName(sn), nativeData(std::move(nd)), nativeDataLen(l) {}
 
 	std::string structName;
 	XComPropertyList structProps;
 	std::unique_ptr<unsigned char[]> nativeData;
 	uint32_t nativeDataLen;
+
+	uint32_t size() const {
+		// Name length + name data + trailing null + unknown 0 int value = len + 4 + 1 + 4 = len + 9 bytes.
+		uint32_t total = 0;//structName.length() + 5 + 4;
+		if (nativeDataLen > 0) {
+			return total + nativeDataLen;
+		}
+		else {
+			std::for_each(structProps.begin(), structProps.end(), [&total](const XComPropertyPtr &prop) {
+				total += prop->full_size();
+			});
+			
+			// Add the size of the "None" property terminating the list: 9 for "None" and 4 for the unknown int
+			total += 9 + 4;
+			return total;
+		}
+	}
+
+	virtual uint32_t full_size() const {
+		uint32_t total = XComProperty::full_size();
+		total += structName.length() + 5 + 4;
+		return total;
+	}
 
 	void accept(XComPropertyVisitor *v) {
 		v->visitStruct(this);
@@ -292,16 +365,32 @@ struct XComStructProperty : public XComProperty
 struct XComStaticArrayProperty : public XComProperty
 {
 	XComStaticArrayProperty(const std::string& n) :
-		XComProperty(n, 0, Kind::StaticArrayProperty) {}
+		XComProperty(n, Kind::StaticArrayProperty) {}
 
 	void addProperty(XComPropertyPtr&& ptr)
 	{
 		properties.push_back(std::move(ptr));
 	}
 
-	size_t size() const
-	{
+	size_t length() const {
 		return properties.size();
+	}
+
+	uint32_t size() const {
+		uint32_t total = 0;
+		std::for_each(properties.begin(), properties.end(), [&total](const XComPropertyPtr &prop) {
+			total += prop->size();
+		});
+		return total;
+	}
+
+	virtual uint32_t full_size() const
+	{
+		uint32_t total = 0;
+		std::for_each(properties.begin(), properties.end(), [&total](const XComPropertyPtr &prop) {
+			total += prop->full_size();
+		});
+		return total;
 	}
 
 	void accept(XComPropertyVisitor *v) {
@@ -335,9 +424,6 @@ struct XComCheckpoint
 
 	// The class name of the class this actor is an instance of
 	std::string className;
-
-	// The full length of all properties in this checkpoint
-	uint32_t propLen;
 
 	// A list of properties (e.g. the member variables of the actor instance)
 	XComPropertyList properties;

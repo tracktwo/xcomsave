@@ -126,9 +126,9 @@ struct PropertyWriterVisitor : public XComPropertyVisitor
 
 	virtual void visitObject(XComObjectProperty *prop) override
 	{
-		assert(prop->getSize() == prop->data.size());
-		writer_->ensureSpace(prop->getSize());
-		for (unsigned int i = 0; i < prop->getSize(); ++i) {
+		assert(prop->size() == prop->data.size());
+		writer_->ensureSpace(prop->size());
+		for (unsigned int i = 0; i < prop->size(); ++i) {
 			*writer_->buf_++ = prop->data[i];
 		}
 	}
@@ -160,7 +160,7 @@ struct PropertyWriterVisitor : public XComPropertyVisitor
 	virtual void visitArray(XComArrayProperty *prop) override
 	{
 		writer_->writeInt(prop->arrayBound);
-		uint32_t dataLen = prop->getSize() - 4;
+		uint32_t dataLen = prop->size() - 4;
 		writer_->writeRawBytes(prop->data.get(), dataLen);
 	}
 
@@ -197,7 +197,7 @@ void XComWriter::writeProperty(const XComPropertyPtr& prop, uint32_t arrayIdx)
 	// If this is a static array property we need to write only the contained properties, not the fake static array property created to contain it.
 	if (prop->getKind() == XComProperty::Kind::StaticArrayProperty) {
 		XComStaticArrayProperty* staticArray = dynamic_cast<XComStaticArrayProperty*>(prop.get());
-		for (unsigned int idx = 0; idx < staticArray->size(); ++idx) {
+		for (unsigned int idx = 0; idx < staticArray->length(); ++idx) {
 			writeProperty(staticArray->properties[idx], idx);
 		}
 	}
@@ -207,7 +207,7 @@ void XComWriter::writeProperty(const XComPropertyPtr& prop, uint32_t arrayIdx)
 		writeInt(0);
 		writeString(propKindToString(prop->getKind()));
 		writeInt(0);
-		writeInt(prop->getSize());
+		writeInt(prop->size());
 		writeInt(arrayIdx);
 
 		// Write the specific part
@@ -227,7 +227,13 @@ void XComWriter::writeCheckpoint(const XComCheckpoint& chk)
 	writeInt(chk.rotator[1]);
 	writeInt(chk.rotator[2]);
 	writeString(chk.className);
-	writeInt(chk.propLen);
+	uint32_t totalPropSize = 0;
+	std::for_each(chk.properties.begin(), chk.properties.end(), [&totalPropSize](const XComPropertyPtr& prop) {
+		totalPropSize += prop->full_size();
+	});
+	totalPropSize += 9 + 4; // length of trailing "None" to terminate the list + the unknown int.
+	totalPropSize += chk.padSize;
+	writeInt(totalPropSize);
 	for (unsigned int i = 0; i < chk.properties.size(); ++i) {
 		writeProperty(chk.properties[i], 0);
 	}

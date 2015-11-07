@@ -146,7 +146,6 @@ XComPropertyPtr buildIntProperty(const Json& json)
 	std::string err;
 	Json::shape shape = {
 		{ "name", Json::STRING },
-		{ "size", Json::NUMBER },
 		{ "value", Json::NUMBER }
 	};
 
@@ -154,7 +153,7 @@ XComPropertyPtr buildIntProperty(const Json& json)
 		throw std::exception("Error reading json file: format mismatch in int property");
 	}
 
-	return std::make_unique<XComIntProperty>(json["name"].string_value(), json["size"].int_value(), json["value"].int_value());
+	return std::make_unique<XComIntProperty>(json["name"].string_value(), json["value"].int_value());
 }
 
 XComPropertyPtr buildFloatProperty(const Json& json)
@@ -162,7 +161,6 @@ XComPropertyPtr buildFloatProperty(const Json& json)
 	std::string err;
 	Json::shape shape = {
 		{ "name", Json::STRING },
-		{ "size", Json::NUMBER },
 		{ "value", Json::NUMBER }
 	};
 
@@ -170,7 +168,7 @@ XComPropertyPtr buildFloatProperty(const Json& json)
 		throw std::exception("Error reading json file: format mismatch in float property");
 	}
 
-	return std::make_unique<XComFloatProperty>(json["name"].string_value(), json["size"].int_value(), static_cast<float>(json["value"].number_value()));
+	return std::make_unique<XComFloatProperty>(json["name"].string_value(), static_cast<float>(json["value"].number_value()));
 }
 
 XComPropertyPtr buildBoolProperty(const Json& json)
@@ -178,7 +176,6 @@ XComPropertyPtr buildBoolProperty(const Json& json)
 	std::string err;
 	Json::shape shape = {
 		{ "name", Json::STRING },
-		{ "size", Json::NUMBER },
 		{ "value", Json::BOOL }
 	};
 
@@ -186,7 +183,7 @@ XComPropertyPtr buildBoolProperty(const Json& json)
 		throw std::exception("Error reading json file: format mismatch in bool property");
 	}
 
-	return std::make_unique<XComBoolProperty>(json["name"].string_value(), json["size"].int_value(), json["value"].bool_value());
+	return std::make_unique<XComBoolProperty>(json["name"].string_value(), json["value"].bool_value());
 }
 
 XComPropertyPtr buildStringProperty(const Json& json)
@@ -194,7 +191,6 @@ XComPropertyPtr buildStringProperty(const Json& json)
 	std::string err;
 	Json::shape shape = {
 		{ "name", Json::STRING },
-		{ "size", Json::NUMBER },
 		{ "value", Json::STRING }
 	};
 
@@ -202,7 +198,7 @@ XComPropertyPtr buildStringProperty(const Json& json)
 		throw std::exception("Error reading json file: format mismatch in string property");
 	}
 
-	return std::make_unique<XComStringProperty>(json["name"].string_value(), json["size"].int_value(), json["value"].string_value());
+	return std::make_unique<XComStringProperty>(json["name"].string_value(), json["value"].string_value());
 }
 
 XComPropertyPtr buildObjectProperty(const Json& json)
@@ -210,7 +206,6 @@ XComPropertyPtr buildObjectProperty(const Json& json)
 	std::string err;
 	Json::shape shape = {
 		{ "name", Json::STRING },
-		{ "size", Json::NUMBER },
 		{ "data", Json::ARRAY }
 	};
 
@@ -223,7 +218,7 @@ XComPropertyPtr buildObjectProperty(const Json& json)
 		data.push_back(elem.int_value());
 	}
 
-	return std::make_unique<XComObjectProperty>(json["name"].string_value(), json["size"].int_value(), std::move(data));
+	return std::make_unique<XComObjectProperty>(json["name"].string_value(), std::move(data));
 }
 
 XComPropertyPtr buildByteProperty(const Json& json)
@@ -231,7 +226,6 @@ XComPropertyPtr buildByteProperty(const Json& json)
 	std::string err;
 	Json::shape shape = {
 		{ "name", Json::STRING },
-		{ "size", Json::NUMBER },
 		{ "type", Json::STRING },
 		{ "value", Json::STRING },
 		{ "extra_value", Json::NUMBER }
@@ -241,7 +235,7 @@ XComPropertyPtr buildByteProperty(const Json& json)
 		throw std::exception("Error reading json file: format mismatch in byte property");
 	}
 
-	return std::make_unique<XComByteProperty>(json["name"].string_value(), json["size"].int_value(), json["type"].string_value(), json["value"].string_value(), json["extra_value"].int_value());
+	return std::make_unique<XComByteProperty>(json["name"].string_value(), json["type"].string_value(), json["value"].string_value(), json["extra_value"].int_value());
 }
 
 XComPropertyPtr buildStructProperty(const Json& json)
@@ -249,7 +243,6 @@ XComPropertyPtr buildStructProperty(const Json& json)
 	std::string err;
 	Json::shape shape = {
 		{ "name", Json::STRING },
-		{ "size", Json::NUMBER },
 		{ "struct_name", Json::STRING },
 		{ "properties", Json::ARRAY },
 		{ "native_data", Json::STRING },
@@ -264,11 +257,11 @@ XComPropertyPtr buildStructProperty(const Json& json)
 	if (nativeDataStr != "") {
 		uint32_t dataLen = nativeDataStr.length() / 2;
 		data = fromHex(nativeDataStr);
-		return std::make_unique<XComStructProperty>(json["name"].string_value(), json["size"].int_value(), json["struct_name"].string_value(), std::move(data), dataLen);
+		return std::make_unique<XComStructProperty>(json["name"].string_value(), json["struct_name"].string_value(), std::move(data), dataLen);
 	}
 	else {
 		XComPropertyList props = buildPropertyList(json["properties"]);
-		return std::make_unique<XComStructProperty>(json["name"].string_value(), json["size"].int_value(), json["struct_name"].string_value(), std::move(props));
+		return std::make_unique<XComStructProperty>(json["name"].string_value(), json["struct_name"].string_value(), std::move(props));
 	}
 }
 
@@ -277,7 +270,7 @@ XComPropertyPtr buildArrayProperty(const Json& json)
 	std::string err;
 	Json::shape shape = {
 		{ "name", Json::STRING },
-		{ "size", Json::NUMBER },
+		{ "data_length", Json::NUMBER },
 		{ "array_bound", Json::NUMBER },
 		{ "data", Json::STRING },
 	};
@@ -290,11 +283,11 @@ XComPropertyPtr buildArrayProperty(const Json& json)
 	std::unique_ptr<unsigned char[]> data;
 
 	if (dataStr.length() > 0) {
-		assert((dataStr.length() / 2) == (json["size"].int_value() - 4));
+		assert((dataStr.length() / 2) == (json["data_length"].int_value()));
 		data = fromHex(dataStr);
 	}
 
-	return std::make_unique<XComArrayProperty>(json["name"].string_value(), json["size"].int_value(), std::move(data), json["array_bound"].int_value());
+	return std::make_unique<XComArrayProperty>(json["name"].string_value(), std::move(data), json["data_length"].int_value(), json["array_bound"].int_value());
 }
 
 XComPropertyPtr buildStaticArrayProperty(const Json& json)
@@ -353,7 +346,6 @@ XComCheckpoint buildCheckpoint(const Json& json)
 		{ "vector", Json::ARRAY },
 		{ "rotator", Json::ARRAY },
 		{ "class_name", Json::STRING },
-		{ "properties_length", Json::NUMBER },
 		{ "properties", Json::ARRAY },
 		{ "template_index", Json::NUMBER },
 		{ "pad_size", Json::NUMBER }
@@ -368,7 +360,6 @@ XComCheckpoint buildCheckpoint(const Json& json)
 	chk.vector = buildArray<float>(json["vector"]);
 	chk.rotator = buildArray<int>(json["rotator"]);
 	chk.className = json["class_name"].string_value();
-	chk.propLen = json["properties_length"].int_value();
 	chk.properties = buildPropertyList(json["properties"]);
 	chk.templateIndex = json["template_index"].int_value();
 	chk.padSize = json["pad_size"].int_value();

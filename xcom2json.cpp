@@ -14,7 +14,6 @@ struct JsonPropertyVisitor : public XComPropertyVisitor
 	{
 		json = Json::object {
 			{ "name", prop->getName() },
-			{ "size", (int)prop->getSize() },
 			{ "kind", "IntProperty" },
 			{ "value", (int)prop->value }
 		};
@@ -24,7 +23,6 @@ struct JsonPropertyVisitor : public XComPropertyVisitor
 	{
 		json = Json::object{
 			{ "name", prop->getName() },
-			{ "size", (int)prop->getSize() },
 			{ "kind", "FloatProperty" },
 			{ "value", prop->value }
 		};
@@ -34,7 +32,6 @@ struct JsonPropertyVisitor : public XComPropertyVisitor
 	{
 		json = Json::object{
 			{ "name", prop->getName() },
-			{ "size", (int)prop->getSize() },
 			{ "kind", "BoolProperty" },
 			{ "value", prop->value }
 		};
@@ -44,7 +41,6 @@ struct JsonPropertyVisitor : public XComPropertyVisitor
 	{
 		json = Json::object{
 			{ "name", prop->getName() },
-			{ "size", (int)prop->getSize() },
 			{ "kind", "StringProperty" },
 			{ "value", prop->str }
 		};
@@ -54,7 +50,6 @@ struct JsonPropertyVisitor : public XComPropertyVisitor
 	{
 		json = Json::object{
 			{ "name", prop->getName() },
-			{ "size", (int)prop->getSize() },
 			{ "kind", "ObjectProperty" },
 			{ "data", prop->data }
 		};
@@ -64,7 +59,6 @@ struct JsonPropertyVisitor : public XComPropertyVisitor
 	{
 		json = Json::object{
 			{ "name", prop->getName() },
-			{ "size", (int)prop->getSize() },
 			{ "kind", "ByteProperty" },
 			{ "type", prop->enumType },
 			{ "value", prop->enumVal },
@@ -93,7 +87,6 @@ struct JsonPropertyVisitor : public XComPropertyVisitor
 
 		json = Json::object{
 			{ "name", prop->getName() },
-			{ "size", (int)prop->getSize() },
 			{ "struct_name", prop->structName },
 			{ "kind", "StructProperty" },
 			{ "properties", jsonProps },
@@ -103,10 +96,10 @@ struct JsonPropertyVisitor : public XComPropertyVisitor
 
 	virtual void visitArray(XComArrayProperty *prop) override
 	{
-		std::string dataStr = (prop->arrayBound > 0) ? toHex(prop->data.get(), prop->getSize() - 4) : "";
+		std::string dataStr = (prop->arrayBound > 0) ? toHex(prop->data.get(), prop->data_length) : "";
 		json = Json::object{
 			{ "name", prop->getName() },
-			{ "size", (int)prop->getSize() },
+			{ "data_length", (int)prop->data_length },
 			{ "kind", "ArrayProperty" },
 			{ "array_bound", (int)prop->arrayBound },
 			{ "data", dataStr }
@@ -160,7 +153,6 @@ static Json XComCheckpointToJson(const XComCheckpoint& chk)
 		{ "vector", chk.vector },
 		{ "rotator", chk.rotator },
 		{ "class_name", chk.className },
-		{ "properties_length", (int)chk.propLen },
 		{ "properties", propertyJson },
 		{ "template_index", (int)chk.templateIndex },
 		{ "pad_size", (int)chk.padSize }
