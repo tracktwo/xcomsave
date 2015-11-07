@@ -32,7 +32,7 @@ static PropertyDispatch propertyDispatch[] = {
 	{ "IntProperty", buildIntProperty },
 	{ "FloatProperty", buildFloatProperty },
 	{ "BoolProperty", buildBoolProperty },
-	{ "StringProperty", buildStringProperty },
+	{ "StrProperty", buildStringProperty },
 	{ "ObjectProperty", buildObjectProperty },
 	{ "ByteProperty", buildByteProperty },
 	{ "StructProperty", buildStructProperty },

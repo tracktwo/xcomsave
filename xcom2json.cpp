@@ -1,232 +1,426 @@
 
 #include "xcom.h"
 #include "xcomreader.h"
-#include "json11.hpp"
 #include "util.h"
 
+#include <string>
 #include <iostream>
+#include <fstream>
 
-using namespace json11;
+static std::string escape(const std::string& str) {
+	std::string ret;
+
+	for (size_t i = 0; i < str.length(); ++i) {
+		switch (str[i])
+		{
+		case '"':
+			ret += "\\\"";
+			break;
+		case '\\':
+			ret += "\\\\";
+			break;
+		case '\n':
+			ret += "\\n";
+			break;
+		case '\r':
+			ret += "\\r";
+			break;
+		case '\t':
+			ret += "\\t";
+			break;
+		default:
+			if (str[i] > 0 && str[i] < ' ') {
+				std::string hex = toHex(reinterpret_cast<const unsigned char *>(&str[i]), 1);
+				ret += "\\u00";
+				ret += hex;
+			}
+			else {
+				ret += str[i];
+			}
+		}
+	}
+
+	return ret;
+}
+
+struct JsonWriter
+{
+	JsonWriter(const std::string& filename)
+	{
+		out = std::ofstream{ filename };
+		out.setf(std::ofstream::boolalpha);
+		indent_level = 0;
+		needs_comma = false;
+		skip_indent = true;
+	}
+
+	void indent()
+	{
+		if (needs_comma) {
+			out << ", ";
+
+		}
+		if (!skip_indent) {
+			out << std::endl;
+			std::string ind( 2*indent_level, ' ');
+			out << ind;
+		}
+	}
+
+	void beginObject(bool omitNewline = false)
+	{
+		indent();
+		out << "{ ";
+		++indent_level;
+		needs_comma = false;
+		skip_indent = omitNewline;
+	}
+
+	void endObject()
+	{
+		--indent_level;
+		if (needs_comma) {
+			out << " ";
+		}
+		needs_comma = false;
+		//skip_indent = false;
+		indent();
+		out << "}";
+		needs_comma = true;
+		skip_indent = false;
+	}
+
+	void beginArray(bool omitNewline = false)
+	{
+		indent();
+		out << "[ ";
+		++indent_level;
+		needs_comma = false;
+		skip_indent = omitNewline;
+	}
+
+	void endArray()
+	{
+		--indent_level;
+		if (needs_comma) {
+			out << " ";
+		}
+		needs_comma = false;
+		//skip_indent = false;
+		indent();
+		out << "]";
+		needs_comma = true;
+		skip_indent = false;
+	}
+
+	void enditem(bool omitNewline)
+	{
+		if (!omitNewline) {
+			skip_indent = false;
+		}
+		else {
+			skip_indent = true;
+		}
+
+		needs_comma = true;
+	}
+
+	void writeKey(const std::string &name)
+	{
+		indent();
+		out << "\"" << name << "\": ";
+		skip_indent = true;
+		needs_comma = false;
+	}
+
+	void writeInt(const std::string &name, uint32_t val, bool omitNewline = false)
+	{
+		writeKey(name);
+		out << (int)val;
+		enditem(omitNewline);
+	}
+
+	void writeBareInt(int val, bool omitNewLine = false)
+	{
+		indent();
+		out << val;
+		enditem(omitNewLine);
+	}
+
+	void writeFloat(const std::string &name, float val, bool omitNewline = false)
+	{
+		writeKey(name);
+		out << val;
+		enditem(omitNewline);
+	}
+
+	void writeBareFloat(float val, bool omitNewLine = false)
+	{
+		indent();
+		out << val;
+		enditem(omitNewLine);
+	}
+
+	void writeString(const std::string &name, const std::string &val, bool omitNewline = false)
+	{
+		writeKey(name);
+		out << "\"" << escape(val) << "\"";
+		enditem(omitNewline);
+	}
+
+	void writeBool(const std::string &name, bool val, bool omitNewline = false)
+	{
+		writeKey(name);
+		out << val;
+		enditem(omitNewline);
+	}
+
+
+private:
+	std::ofstream out;
+	size_t indent_level;
+	bool skip_indent;
+	bool needs_comma;
+};
+
+
 
 struct JsonPropertyVisitor : public XComPropertyVisitor
 {
+	JsonPropertyVisitor(JsonWriter &writer) : w(writer) {}
+
+	void writeCommon(XComProperty* prop, bool omitNewlines = false)
+	{
+		w.writeString("name", prop->getName(), omitNewlines);
+		w.writeString("kind", prop->kind_string(), omitNewlines);
+	}
+
 	virtual void visitInt(XComIntProperty *prop) override
 	{
-		json = Json::object {
-			{ "name", prop->getName() },
-			{ "kind", "IntProperty" },
-			{ "value", (int)prop->value }
-		};
+		w.beginObject(true);
+		writeCommon(prop, true);
+		w.writeInt("value", prop->value, true);
+		w.endObject();
 	}
 
 	virtual void visitFloat(XComFloatProperty *prop) override
 	{
-		json = Json::object{
-			{ "name", prop->getName() },
-			{ "kind", "FloatProperty" },
-			{ "value", prop->value }
-		};
+		w.beginObject(true);
+		writeCommon(prop, true);
+		w.writeFloat("value", prop->value, true);
+		w.endObject();
 	}
 
 	virtual void visitBool(XComBoolProperty *prop) override
 	{
-		json = Json::object{
-			{ "name", prop->getName() },
-			{ "kind", "BoolProperty" },
-			{ "value", prop->value }
-		};
+		w.beginObject(true);
+		writeCommon(prop, true);
+		w.writeBool("value", prop->value, true);
+		w.endObject();
 	}
 
 	virtual void visitString(XComStringProperty *prop) override
 	{
-		json = Json::object{
-			{ "name", prop->getName() },
-			{ "kind", "StringProperty" },
-			{ "value", prop->str }
-		};
+		w.beginObject(true);
+		writeCommon(prop, true);
+		w.writeString("value", prop->str, true);
+		w.endObject();
 	}
 
 	virtual void visitObject(XComObjectProperty *prop) override
 	{
-		json = Json::object{
-			{ "name", prop->getName() },
-			{ "kind", "ObjectProperty" },
-			{ "actor1", (int)prop->actor1 },
-			{ "actor2", (int)prop->actor2 },
-		};
+		w.beginObject(true);
+		writeCommon(prop, true);
+		w.writeInt("actor1", prop->actor1, true);
+		w.writeInt("actor2", prop->actor2, true);
+		w.endObject();
 	}
 
 	virtual void visitByte(XComByteProperty *prop) override
 	{
-		json = Json::object{
-			{ "name", prop->getName() },
-			{ "kind", "ByteProperty" },
-			{ "type", prop->enumType },
-			{ "value", prop->enumVal },
-			{ "extra_value", (int)prop->extVal }
-		};
+		w.beginObject();
+		writeCommon(prop);
+		w.writeString("type", prop->enumType);
+		w.writeString("value", prop->enumVal);
+		w.writeInt("extra_value", prop->extVal);
+		w.endObject();
 	}
 
 	virtual void visitStruct(XComStructProperty *prop) override
 	{
-		std::vector<Json> jsonProps;
-		std::for_each(prop->structProps.begin(), prop->structProps.end(),
-			[&jsonProps](const XComPropertyPtr& v) { 
-				JsonPropertyVisitor visitor;
-				v->accept(&visitor);
-				jsonProps.push_back(visitor.json); 
-		});
+		w.beginObject();
+		writeCommon(prop);
+		w.writeString("struct_name", prop->structName);
 
-		std::string dataStr;
 		if (prop->nativeDataLen > 0) {
 			uint32_t strLen = prop->nativeDataLen * 2 + 1;
-			dataStr = toHex(prop->nativeData.get(), prop->nativeDataLen);
+			w.writeString("native_data", toHex(prop->nativeData.get(), prop->nativeDataLen));
+			w.writeKey("properties");
+			w.beginArray(true);
+			w.endArray();
 		}
 		else {
-			dataStr = "";
+			w.writeString("native_data", "");
+			w.writeKey("properties");
+			w.beginArray();
+			std::for_each(prop->structProps.begin(), prop->structProps.end(),
+				[this](const XComPropertyPtr& v) {
+				JsonPropertyVisitor visitor{ w };
+				v->accept(&visitor);
+			});
+			w.endArray();
 		}
-
-		json = Json::object{
-			{ "name", prop->getName() },
-			{ "struct_name", prop->structName },
-			{ "kind", "StructProperty" },
-			{ "properties", jsonProps },
-			{ "native_data", dataStr }
-		};
+		w.endObject();
 	}
 
 	virtual void visitArray(XComArrayProperty *prop) override
 	{
+		w.beginObject();
+		writeCommon(prop);
+		w.writeInt("data_length", prop->data_length);
+		w.writeInt("array_bound", prop->arrayBound);
 		std::string dataStr = (prop->arrayBound > 0) ? toHex(prop->data.get(), prop->data_length) : "";
-		json = Json::object{
-			{ "name", prop->getName() },
-			{ "data_length", (int)prop->data_length },
-			{ "kind", "ArrayProperty" },
-			{ "array_bound", (int)prop->arrayBound },
-			{ "data", dataStr }
-		};
+		w.writeString("data", dataStr);
+		w.endObject();
 	}
 
 	virtual void visitStaticArray(XComStaticArrayProperty *prop) override
 	{
-		std::vector<Json> jsonProps;
+		w.beginObject();
+		writeCommon(prop);
+		w.writeKey("properties");
+		w.beginArray();
+
 		std::for_each(prop->properties.begin(), prop->properties.end(),
-			[&jsonProps](const XComPropertyPtr& v) { 
-				JsonPropertyVisitor visitor;
+			[this](const XComPropertyPtr& v) { 
+				JsonPropertyVisitor visitor{ w };
 				v->accept(&visitor);
-				jsonProps.push_back(visitor.json); 
 		});
 
-		// Static array properties don't really exist in the save file and don't have a size.
-		json = Json::object{
-			{ "name", prop->getName() },
-			{ "kind", "StaticArrayProperty" },
-			{ "properties", jsonProps }
-		};
+		w.endArray();
+		w.endObject();
 	}
 
-	Json json;
+	JsonWriter& w;
 };
 
-static Json XComActorToJson(const XComActor& actor)
+static void XComActorToJson(const XComActor& actor, JsonWriter& w)
 {
 	std::string actorName = actor.actorName.first;
 	actorName.append(".").append(actor.actorName.second);
-	return Json::object{
-		{ "instance_num", (int)actor.instanceNum },
-		{ "name", actorName }
-	};
+
+	w.beginObject(true);
+	w.writeString("name", actorName, true);
+	w.writeInt("instance_num", actor.instanceNum, true);
+	w.endObject();
 }
 
-static Json XComCheckpointToJson(const XComCheckpoint& chk)
+static void XComCheckpointToJson(const XComCheckpoint& chk, JsonWriter& w)
 {
-	std::vector<Json> propertyJson;
-	std::for_each(chk.properties.begin(), chk.properties.end(),
-		[&propertyJson](const XComPropertyPtr& v) { 
-			JsonPropertyVisitor visitor;
-			v->accept(&visitor);
-			propertyJson.push_back(visitor.json); 
-	});
-
-	return Json::object{
-		{ "name", chk.name },
-		{ "instance_name", chk.instanceName },
-		{ "vector", chk.vector },
-		{ "rotator", chk.rotator },
-		{ "class_name", chk.className },
-		{ "properties", propertyJson },
-		{ "template_index", (int)chk.templateIndex },
-		{ "pad_size", (int)chk.padSize }
-	};
-}
-
-static Json XComCheckpointChunkToJson(const XComCheckpointChunk& chk)
-{
-	std::vector<Json> checkpointTableJson;
-	std::for_each(chk.checkpointTable.begin(), chk.checkpointTable.end(),
-		[&checkpointTableJson](const XComCheckpoint& v) { checkpointTableJson.push_back(XComCheckpointToJson(v)); }
-	);
-
-	std::vector<Json> actorTableJson;
-	std::for_each(chk.actorTable.begin(), chk.actorTable.end(),
-		[&actorTableJson](const XComActor& v) { actorTableJson.push_back(XComActorToJson(v)); }
-	);
-
-	return Json::object{
-			{ "unknown_int1", (int)chk.unknownInt1 },
-			{ "game_type", chk.gameType },
-			{ "checkpoint_table", checkpointTableJson },
-			{ "unknown_int2", (int)chk.unknownInt2	},
-			{ "class_name", chk.className },
-			{ "actor_table", actorTableJson },
-			{ "unknown_int3", (int)chk.unknownInt3 },
-			{ "display_name", chk.displayName },
-			{ "map_name", chk.mapName },
-			{ "unknown_int4", (int)chk.unknownInt4 }
-	};
-}
-
-static Json XComCheckpointChunkTableToJson(const XComCheckpointChunkTable & table)
-{
-	std::vector<Json> chunks;
-	for (size_t i = 0; i < table.size(); ++i) {
-		chunks.push_back(XComCheckpointChunkToJson(table[i]));
+	w.beginObject();
+	w.writeString("name", chk.name);
+	w.writeString("instance_name", chk.instanceName);
+	w.writeString("class_name", chk.className);
+	w.writeKey("vector");
+	w.beginArray(true);
+	for (const auto& i : chk.vector) {
+		w.writeBareFloat(i, true);
 	}
+	w.endArray();
+	w.writeKey("rotator");
+	w.beginArray(true);
+	for (const auto& i : chk.rotator) {
+		w.writeBareInt(i, true);
+	}
+	w.endArray();
 
-	return Json(std::move(chunks));
+	w.writeKey("properties");
+	w.beginArray();
+	std::for_each(chk.properties.begin(), chk.properties.end(),
+		[&w](const XComPropertyPtr& v) { 
+			JsonPropertyVisitor visitor{ w };
+			v->accept(&visitor);
+	});
+	w.endArray();
+
+	w.writeInt("template_index", chk.templateIndex);
+	w.writeInt("pad_size", chk.padSize);
+	w.endObject();
 }
 
-Json buildJson(const XComSave& save)
+static void XComCheckpointChunkToJson(const XComCheckpointChunk& chk, JsonWriter &w)
 {
+	w.beginObject();
+	w.writeInt("unknown_int1", chk.unknownInt1);
+	w.writeString("game_type", chk.gameType);
+	w.writeKey("checkpoint_table");
+	w.beginArray();
+	std::for_each(chk.checkpointTable.begin(), chk.checkpointTable.end(),
+		[&w](const XComCheckpoint& v) { XComCheckpointToJson(v, w); }
+	);
+	w.endArray();
+
+	w.writeInt("unknown_int2", chk.unknownInt2);
+	w.writeString("class_name", chk.className);
+
+	w.writeKey("actor_table");
+	w.beginArray();
+	std::for_each(chk.actorTable.begin(), chk.actorTable.end(),
+		[&w](const XComActor& v) { XComActorToJson(v, w); }
+	);
+	w.endArray();
+
+	w.writeInt("unknown_int3", chk.unknownInt3);
+	w.writeString("display_name", chk.displayName);
+	w.writeString("map_name", chk.mapName);
+	w.writeInt("unknown_int4", chk.unknownInt4);
+	w.endObject();
+}
+
+static void XComCheckpointChunkTableToJson(const XComCheckpointChunkTable & table, JsonWriter& w)
+{
+	for (size_t i = 0; i < table.size(); ++i) {
+		XComCheckpointChunkToJson(table[i], w);
+	}
+}
+
+void buildJson(const XComSave& save, JsonWriter& w)
+{
+	w.beginObject();
+
+	// Write the header
 	const XComSaveHeader &hdr = save.header;
 
-	Json header = Json::object{ 
-		{ "version", (int)hdr.version },
-		{ "uncompressed_size", (int)hdr.uncompressed_size },
-		{ "game_number", (int) hdr.game_number },
-		{ "save_number", (int) hdr.save_number },
-		{ "save_description", hdr.save_description },
-		{ "time", hdr.time },
-		{ "map_command", hdr.map_command },
-		{ "tactical_save", hdr.tactical_save },
-		{ "ironman", hdr.ironman },
-		{ "autosave", hdr.autosave },
-		{ "dlc", hdr.dlc },
-		{ "language", hdr.language }
-	};
+	w.writeKey("header");
+	w.beginObject();
+	w.writeInt("version", hdr.version);
+	w.writeInt("uncompressed_size", hdr.uncompressed_size);
+	w.writeInt("game_number", hdr.game_number);
+	w.writeInt("save_number", hdr.save_number);
+	w.writeString("save_description", hdr.save_description);
+	w.writeString("time", hdr.time);
+	w.writeString("map_command", hdr.map_command);
+	w.writeBool("tactical_save", hdr.tactical_save);
+	w.writeBool("ironman", hdr.ironman);
+	w.writeBool("autosave", hdr.autosave);
+	w.writeString("dlc", hdr.dlc);
+	w.writeString("language", hdr.language);
+	w.endObject();
 
-	std::vector<Json> actorTableJson;
+	w.writeKey("actor_table");
+	w.beginArray();
 	std::for_each(save.actorTable.begin(), save.actorTable.end(),
-		[&actorTableJson](const XComActor& v) { actorTableJson.push_back(XComActorToJson(v)); }
+		[&w](const XComActor& v) { XComActorToJson(v, w); w.enditem(false); }
 	);
+	w.endArray();
 
-	Json jsonSave = Json::object{
-		{ "header", header },
-		{ "actor_table", actorTableJson },
-		{ "checkpoints", XComCheckpointChunkTableToJson(save.checkpoints) },
-	};
-
-	return jsonSave;
+	w.writeKey("checkpoints");
+	w.beginArray();
+	std::for_each(save.checkpoints.begin(), save.checkpoints.end(),
+		[&w](const XComCheckpointChunk& v) { XComCheckpointChunkToJson(v, w); w.enditem(false); }
+	);
+	w.endArray();
+	w.endObject();
 }
 
 void usage(const char * name)
@@ -300,11 +494,8 @@ int main(int argc, char *argv[])
 	try {
 		XComReader reader{ std::move(fileBuf) };
 		XComSave save = reader.getSaveData();
-		Json jsonsave = buildJson(save);
-		std::string str = jsonsave.dump();
-		FILE *fp = fopen(outfile, "w");
-		fwrite(str.c_str(), 1, str.length(), fp);
-		fclose(fp);
+		JsonWriter writer{ outfile };
+		buildJson(save, writer);
 	}
 	catch (std::exception e)
 	{

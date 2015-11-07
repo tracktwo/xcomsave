@@ -24,5 +24,4 @@ std::string utf8toiso8859_1(const std::string& in);
 std::string toHex(const unsigned char *data, uint32_t dataLen);
 std::unique_ptr<unsigned char[]> fromHex(const std::string& str);
 
-
 #endif // UTIL_H

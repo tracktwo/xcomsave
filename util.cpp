@@ -154,29 +154,12 @@ std::string utf8toiso8859_1(const std::string& in)
 	return out;
 }
 
-std::string getPropertyKindString(XComProperty::Kind k)
-{
-	switch (k)
-	{
-	case XComProperty::Kind::IntProperty: return "IntProperty";
-	case XComProperty::Kind::FloatProperty: return "FloatProperty";
-	case XComProperty::Kind::BoolProperty: return "BoolProperty";
-	case XComProperty::Kind::StrProperty: return "StrProperty";
-	case XComProperty::Kind::ObjectProperty: return "ObjectProperty";
-	case XComProperty::Kind::ByteProperty: return "ByteProperty";
-	case XComProperty::Kind::StructProperty: return "StructProperty";
-	case XComProperty::Kind::ArrayProperty: return "ArrayProperty";
-	default:
-		throw std::exception("getPropertyKindString: Invalid property kind\n");
-	}
-}
-
 uint32_t XComProperty::full_size() const
 {
 	uint32_t total = size();
 	total += name.length() + 5;
 	total += 4; //unknown 1
-	total += getPropertyKindString(kind).length() + 5;
+	total += kind_string().length() + 5;
 	total += 4; //unknown 2
 	total += 4; //propsize
 	total += 4; //array index

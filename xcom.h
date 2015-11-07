@@ -104,6 +104,25 @@ struct XComProperty
 		StaticArrayProperty
 	};
 
+	std::string kind_string() const
+	{
+		switch (kind)
+		{
+		case Kind::IntProperty: return "IntProperty";
+		case Kind::FloatProperty: return "FloatProperty";
+		case Kind::BoolProperty: return "BoolProperty";
+		case Kind::StrProperty: return "StrProperty";
+		case Kind::ObjectProperty: return "ObjectProperty";
+		case Kind::ByteProperty: return "ByteProperty";
+		case Kind::StructProperty: return "StructProperty";
+		case Kind::ArrayProperty: return "ArrayProperty";
+		case Kind::StaticArrayProperty: return "StaticArrayProperty";
+		default:
+			throw std::exception("getPropertyKindString: Invalid property kind\n");
+		}
+	}
+
+
 	XComProperty(const std::string &n, Kind k) : name(n), kind(k) {}
 
 	Kind getKind() const {
