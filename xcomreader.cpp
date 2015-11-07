@@ -138,6 +138,10 @@ XComPropertyList XComReader::readProperties(uint32_t dataLen)
 			assert(propSize == 8);
 			uint32_t objRef1 = readInt32();
 			uint32_t objRef2 = readInt32();
+			if (objRef1 != 0xffffffff && objRef1 != (objRef2 + 1)) {
+				throw std::exception("Assertion failed: object references not related.\n");
+			}
+
 			prop = std::make_unique<XComObjectProperty>(name, objRef1, objRef2);
 		}
 		else if (propType.compare("IntProperty") == 0) {
@@ -428,7 +432,7 @@ XComSave XComReader::getSaveData()
 	fwrite(uncompressedData, 1, uncompressed_size, outFile);
 	fclose(outFile);
 	save.actorTable = readActorTable();
-	DBG("Finished reading actor table at offset %x\n", offset());
+	DBG("Finished reading actor table (%x) at offset %x\n", save.actorTable.size(), offset());
 	// Jump back to here after each chunk
 	do {
 		XComCheckpointChunk chunk;
@@ -456,7 +460,7 @@ XComSave XComReader::getSaveData()
 
 		chunk.className = readString();
 		chunk.actorTable = readActorTable();
-		DBG("Finished reading second actor table at offset %x\n", offset());
+		DBG("Finished reading second actor table (%x) at offset %x\n", chunk.actorTable.size(), offset());
 
 		chunk.unknownInt3 = readInt32();
 
