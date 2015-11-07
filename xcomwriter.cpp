@@ -126,11 +126,8 @@ struct PropertyWriterVisitor : public XComPropertyVisitor
 
 	virtual void visitObject(XComObjectProperty *prop) override
 	{
-		assert(prop->size() == prop->data.size());
-		writer_->ensureSpace(prop->size());
-		for (unsigned int i = 0; i < prop->size(); ++i) {
-			*writer_->buf_++ = prop->data[i];
-		}
+		writer_->writeInt(prop->actor1);
+		writer_->writeInt(prop->actor2);
 	}
 
 	virtual void visitByte(XComByteProperty *prop) override

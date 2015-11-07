@@ -164,14 +164,15 @@ using XComPropertyList = std::vector<XComPropertyPtr>;
 // TODO Replace the data with the actor references.
 struct XComObjectProperty : public XComProperty
 {
-	XComObjectProperty(const std::string &n, std::vector<unsigned char>&& d) :
-		XComProperty(n, Kind::ObjectProperty), data(std::move(d)) {}
-
-	std::vector<unsigned char> data;
+	XComObjectProperty(const std::string &n, uint32_t a1, uint32_t a2) :
+		XComProperty(n, Kind::ObjectProperty), actor1(a1), actor2(a2) {}
 
 	uint32_t size() const {
 		return 8;
 	}
+
+	uint32_t actor1;
+	uint32_t actor2;
 
 	void accept(XComPropertyVisitor *v) {
 		v->visitObject(this);

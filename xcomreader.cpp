@@ -135,11 +135,10 @@ XComPropertyList XComReader::readProperties(uint32_t dataLen)
 
 		XComPropertyPtr prop;
 		if (propType.compare("ObjectProperty") == 0) {
-			std::vector<unsigned char> data;
-			for (unsigned int i = 0; i < propSize; ++i) {
-				data.push_back(*ptr_++);
-			}
-			prop = std::make_unique<XComObjectProperty>(name, std::move(data));
+			assert(propSize == 8);
+			uint32_t objRef1 = readInt32();
+			uint32_t objRef2 = readInt32();
+			prop = std::make_unique<XComObjectProperty>(name, objRef1, objRef2);
 		}
 		else if (propType.compare("IntProperty") == 0) {
 			assert(propSize == 4);

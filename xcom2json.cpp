@@ -51,7 +51,8 @@ struct JsonPropertyVisitor : public XComPropertyVisitor
 		json = Json::object{
 			{ "name", prop->getName() },
 			{ "kind", "ObjectProperty" },
-			{ "data", prop->data }
+			{ "actor1", (int)prop->actor1 },
+			{ "actor2", (int)prop->actor2 },
 		};
 	}
 

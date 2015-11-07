@@ -206,19 +206,17 @@ XComPropertyPtr buildObjectProperty(const Json& json)
 	std::string err;
 	Json::shape shape = {
 		{ "name", Json::STRING },
-		{ "data", Json::ARRAY }
+		{ "actor1", Json::NUMBER },
+		{ "actor2", Json::NUMBER }
 	};
 
 	if (!json.has_shape(shape, err)) {
 		throw std::exception("Error reading json file: format mismatch in object property");
 	}
 
-	std::vector<unsigned char> data;
-	for (const Json& elem : json["data"].array_items()) {
-		data.push_back(elem.int_value());
-	}
 
-	return std::make_unique<XComObjectProperty>(json["name"].string_value(), std::move(data));
+
+	return std::make_unique<XComObjectProperty>(json["name"].string_value(), json["actor1"].int_value(), json["actor2"].int_value());
 }
 
 XComPropertyPtr buildByteProperty(const Json& json)
