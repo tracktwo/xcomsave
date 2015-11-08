@@ -1,7 +1,7 @@
 #include "xcomwriter.h"
 #include "minilzo.h"
 #include <cassert>
-
+#include <tuple>
 void XComWriter::ensureSpace(uint32_t count)
 {
 	ptrdiff_t currentCount = offset();
@@ -91,10 +91,11 @@ void XComWriter::writeActorTable(const XComActorTable& actorTable)
 {
 	// Each actorTable entry has 2 entries in the save table; names are split.
 	writeInt(actorTable.size() * 2);
-	for (const XComActor& actor : actorTable) {
-		writeString(actor.actorName.second);
-		writeInt(actor.instanceNum);
-		writeString(actor.actorName.first);
+	for (const std::string& actor : actorTable) {
+		std::tuple<std::string, std::string, int> tup = decompose_actor_name(actor);
+		writeString(std::get<1>(tup));
+		writeInt(std::get<2>(tup));
+		writeString(std::get<0>(tup));
 		writeInt(0);
 	}
 }
@@ -126,8 +127,8 @@ struct PropertyWriterVisitor : public XComPropertyVisitor
 
 	virtual void visitObject(XComObjectProperty *prop) override
 	{
-		writer_->writeInt(prop->actor1);
-		writer_->writeInt(prop->actor2);
+		writer_->writeInt(prop->actor * 2 + 1);
+		writer_->writeInt(prop->actor * 2);
 	}
 
 	virtual void visitByte(XComByteProperty *prop) override

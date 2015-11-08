@@ -6,6 +6,7 @@
 #include <string>
 #include <iostream>
 #include <fstream>
+#include <sstream>
 
 static std::string escape(const std::string& str) {
 	std::string ret;
@@ -168,6 +169,13 @@ struct JsonWriter
 		enditem(omitNewline);
 	}
 
+	void writeBareString(const std::string& val, bool omitNewLine = false)
+	{
+		indent();
+		out << "\"" << escape(val) << "\"";
+		enditem(omitNewLine);
+	}
+
 	void writeBool(const std::string &name, bool val, bool omitNewline = false)
 	{
 		writeKey(name);
@@ -187,7 +195,7 @@ private:
 
 struct JsonPropertyVisitor : public XComPropertyVisitor
 {
-	JsonPropertyVisitor(JsonWriter &writer) : w(writer) {}
+	JsonPropertyVisitor(JsonWriter &writer, const XComActorTable &ga, const XComActorTable &la) : w(writer), globalActorTable(ga), localActorTable(la) {}
 
 	void writeCommon(XComProperty* prop, bool omitNewlines = false)
 	{
@@ -231,8 +239,7 @@ struct JsonPropertyVisitor : public XComPropertyVisitor
 	{
 		w.beginObject(true);
 		writeCommon(prop, true);
-		w.writeInt("actor1", prop->actor1, true);
-		w.writeInt("actor2", prop->actor2, true);
+		w.writeInt("actor", prop->actor, true);
 		w.endObject();
 	}
 
@@ -265,7 +272,7 @@ struct JsonPropertyVisitor : public XComPropertyVisitor
 			w.beginArray();
 			std::for_each(prop->structProps.begin(), prop->structProps.end(),
 				[this](const XComPropertyPtr& v) {
-				JsonPropertyVisitor visitor{ w };
+				JsonPropertyVisitor visitor{ w, globalActorTable, localActorTable };
 				v->accept(&visitor);
 			});
 			w.endArray();
@@ -293,7 +300,7 @@ struct JsonPropertyVisitor : public XComPropertyVisitor
 
 		std::for_each(prop->properties.begin(), prop->properties.end(),
 			[this](const XComPropertyPtr& v) { 
-				JsonPropertyVisitor visitor{ w };
+				JsonPropertyVisitor visitor{ w, globalActorTable, localActorTable };
 				v->accept(&visitor);
 		});
 
@@ -302,20 +309,11 @@ struct JsonPropertyVisitor : public XComPropertyVisitor
 	}
 
 	JsonWriter& w;
+	const XComActorTable &globalActorTable;
+	const XComActorTable &localActorTable;
 };
 
-static void XComActorToJson(const XComActor& actor, JsonWriter& w)
-{
-	std::string actorName = actor.actorName.first;
-	actorName.append(".").append(actor.actorName.second);
-
-	w.beginObject(true);
-	w.writeString("name", actorName, true);
-	w.writeInt("instance_num", actor.instanceNum, true);
-	w.endObject();
-}
-
-static void XComCheckpointToJson(const XComCheckpoint& chk, JsonWriter& w)
+static void XComCheckpointToJson(const XComCheckpoint& chk, JsonWriter& w, const XComActorTable& globalActorTable, const XComActorTable& localActorTable)
 {
 	w.beginObject();
 	w.writeString("name", chk.name);
@@ -337,8 +335,8 @@ static void XComCheckpointToJson(const XComCheckpoint& chk, JsonWriter& w)
 	w.writeKey("properties");
 	w.beginArray();
 	std::for_each(chk.properties.begin(), chk.properties.end(),
-		[&w](const XComPropertyPtr& v) { 
-			JsonPropertyVisitor visitor{ w };
+		[&w, &globalActorTable, &localActorTable](const XComPropertyPtr& v) { 
+			JsonPropertyVisitor visitor{ w, globalActorTable, localActorTable };
 			v->accept(&visitor);
 	});
 	w.endArray();
@@ -348,7 +346,7 @@ static void XComCheckpointToJson(const XComCheckpoint& chk, JsonWriter& w)
 	w.endObject();
 }
 
-static void XComCheckpointChunkToJson(const XComCheckpointChunk& chk, JsonWriter &w)
+static void XComCheckpointChunkToJson(const XComCheckpointChunk& chk, JsonWriter &w, const XComSave& save)
 {
 	w.beginObject();
 	w.writeInt("unknown_int1", chk.unknownInt1);
@@ -356,7 +354,7 @@ static void XComCheckpointChunkToJson(const XComCheckpointChunk& chk, JsonWriter
 	w.writeKey("checkpoint_table");
 	w.beginArray();
 	std::for_each(chk.checkpointTable.begin(), chk.checkpointTable.end(),
-		[&w](const XComCheckpoint& v) { XComCheckpointToJson(v, w); }
+		[&w, &save, &chk](const XComCheckpoint& v) { XComCheckpointToJson(v, w, save.actorTable, chk.actorTable); }
 	);
 	w.endArray();
 
@@ -365,8 +363,9 @@ static void XComCheckpointChunkToJson(const XComCheckpointChunk& chk, JsonWriter
 
 	w.writeKey("actor_table");
 	w.beginArray();
+	
 	std::for_each(chk.actorTable.begin(), chk.actorTable.end(),
-		[&w](const XComActor& v) { XComActorToJson(v, w); }
+		[&w](const std::string& a) { w.writeBareString(a); }
 	);
 	w.endArray();
 
@@ -375,13 +374,6 @@ static void XComCheckpointChunkToJson(const XComCheckpointChunk& chk, JsonWriter
 	w.writeString("map_name", chk.mapName);
 	w.writeInt("unknown_int4", chk.unknownInt4);
 	w.endObject();
-}
-
-static void XComCheckpointChunkTableToJson(const XComCheckpointChunkTable & table, JsonWriter& w)
-{
-	for (size_t i = 0; i < table.size(); ++i) {
-		XComCheckpointChunkToJson(table[i], w);
-	}
 }
 
 void buildJson(const XComSave& save, JsonWriter& w)
@@ -410,14 +402,14 @@ void buildJson(const XComSave& save, JsonWriter& w)
 	w.writeKey("actor_table");
 	w.beginArray();
 	std::for_each(save.actorTable.begin(), save.actorTable.end(),
-		[&w](const XComActor& v) { XComActorToJson(v, w); w.enditem(false); }
+		[&w](const std::string& a) { w.writeBareString(a); }
 	);
 	w.endArray();
 
 	w.writeKey("checkpoints");
 	w.beginArray();
 	std::for_each(save.checkpoints.begin(), save.checkpoints.end(),
-		[&w](const XComCheckpointChunk& v) { XComCheckpointChunkToJson(v, w); w.enditem(false); }
+		[&w, &save](const XComCheckpointChunk& v) { XComCheckpointChunkToJson(v, w, save); w.enditem(false); }
 	);
 	w.endArray();
 	w.endObject();

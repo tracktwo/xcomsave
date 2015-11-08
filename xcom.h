@@ -70,19 +70,7 @@ struct XComSaveHeader
 	std::string language;
 };
 
-// An actor instance. Most saved objects in the game are instances of
-// the Unreal Actor class. These are represented in the save by a pair
-// of strings (map name, class name) and an instance number.
-struct XComActor
-{
-	// Map name followed by actor class name
-	std::pair<std::string, std::string> actorName;
-
-	// The instance number. Always non-zero
-	uint32_t instanceNum;
-};
-
-using XComActorTable = std::vector<XComActor>;
+using XComActorTable = std::vector<std::string>;
 
 struct XComPropertyVisitor;
 
@@ -183,15 +171,14 @@ using XComPropertyList = std::vector<XComPropertyPtr>;
 // TODO Replace the data with the actor references.
 struct XComObjectProperty : public XComProperty
 {
-	XComObjectProperty(const std::string &n, uint32_t a1, uint32_t a2) :
-		XComProperty(n, Kind::ObjectProperty), actor1(a1), actor2(a2) {}
+	XComObjectProperty(const std::string &n, uint32_t a) :
+		XComProperty(n, Kind::ObjectProperty), actor(a) {}
 
 	uint32_t size() const {
 		return 8;
 	}
 
-	uint32_t actor1;
-	uint32_t actor2;
+	uint32_t actor;
 
 	void accept(XComPropertyVisitor *v) {
 		v->visitObject(this);
@@ -523,5 +510,8 @@ struct XComSave
 	XComActorTable actorTable;
 	XComCheckpointChunkTable checkpoints;
 };
+
+std::string build_actor_name(const std::string& package, const std::string& cls, int instance);
+std::tuple<std::string, std::string, int> decompose_actor_name(const std::string& actorName);
 
 #endif // XCOM_H

@@ -104,7 +104,7 @@ XComActorTable XComReader::readActorTable()
 		if (sentinel != 0) {
 			throw std::exception("Error: malformed actor table entry: missing 0 instance\n");
 		}
-		actorTable.push_back({std::make_pair(package, actorName), instanceNum });
+		actorTable.push_back(build_actor_name(package, actorName, (int)instanceNum));
 	}
 
 	return actorTable;
@@ -142,7 +142,7 @@ XComPropertyList XComReader::readProperties(uint32_t dataLen)
 				throw std::exception("Assertion failed: object references not related.\n");
 			}
 
-			prop = std::make_unique<XComObjectProperty>(name, objRef1, objRef2);
+			prop = std::make_unique<XComObjectProperty>(name, (objRef1 == 0xffffffff) ? objRef1 : (objRef1 / 2));
 		}
 		else if (propType.compare("IntProperty") == 0) {
 			assert(propSize == 4);
@@ -373,7 +373,6 @@ void XComReader::getUncompressedData(unsigned char *buf)
 			return;
 		}
 
-		printf("Found chunk at offset 0x%x\n", (p - start_.get()));
 		// Compressed size is at p+8
 		uint32_t compressedSize = *(reinterpret_cast<const unsigned long*>(p + 8));
 

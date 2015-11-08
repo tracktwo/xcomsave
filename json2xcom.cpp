@@ -79,30 +79,11 @@ XComSaveHeader buildHeader(const Json& json)
 	return hdr;
 }
 
-XComActor buildActor(const Json& json)
-{
-	Json::shape shape = {
-		{ "name", Json::STRING },
-		{ "instance_num", Json::NUMBER }
-	};
-	std::string err;
-	if (!json.has_shape(shape, err)) {
-		throw std::exception("Error reading json file: format mismatch in actor");
-	}
-
-	std::string name = json["name"].string_value();
-	size_t dot = name.find_first_of('.');
-	return { 
-		std::make_pair(name.substr(0, dot), name.substr(dot + 1)),
-		static_cast<uint32_t>(json["instance_num"].int_value()) 
-	};
-}
-
 XComActorTable buildActorTable(const Json& json)
 {
 	XComActorTable table;
 	for (const Json& elem : json.array_items()) {
-		table.push_back(buildActor(elem));
+		table.push_back(elem.string_value());
 	}
 
 	return table;
@@ -206,8 +187,7 @@ XComPropertyPtr buildObjectProperty(const Json& json)
 	std::string err;
 	Json::shape shape = {
 		{ "name", Json::STRING },
-		{ "actor1", Json::NUMBER },
-		{ "actor2", Json::NUMBER }
+		{ "actor", Json::NUMBER }
 	};
 
 	if (!json.has_shape(shape, err)) {
@@ -216,7 +196,7 @@ XComPropertyPtr buildObjectProperty(const Json& json)
 
 
 
-	return std::make_unique<XComObjectProperty>(json["name"].string_value(), json["actor1"].int_value(), json["actor2"].int_value());
+	return std::make_unique<XComObjectProperty>(json["name"].string_value(), json["actor"].int_value());
 }
 
 XComPropertyPtr buildByteProperty(const Json& json)

@@ -3,6 +3,7 @@
 #include <exception>
 #include <memory>
 #include <cassert>
+#include <sstream>
 #include "xcom.h"
 
 // CRC Table for polynomial 0x04c11db7
@@ -166,3 +167,26 @@ uint32_t XComProperty::full_size() const
 
 	return total;
 }
+
+std::string build_actor_name(const std::string& package, const std::string& cls, int instance)
+{
+	std::stringstream ret;
+	ret << package << "." << cls << "_" << (instance - 1);
+	return ret.str();
+}
+
+std::tuple<std::string, std::string, int> decompose_actor_name(const std::string& actorName)
+{
+	size_t underscore;
+	size_t dot;
+
+	dot = actorName.find_first_of('.');
+	underscore = actorName.find_last_of('_');
+
+	std::string package = actorName.substr(0, dot);
+	std::string cls = actorName.substr(dot+1, underscore - dot - 1);
+	int instance = std::stoi(actorName.substr(underscore+1));
+	return std::make_tuple(package, cls, instance+1);
+}
+
+
