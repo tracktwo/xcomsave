@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <vector>
+#include <string>
 #include <array>
 #include <memory>
 #include <algorithm>
@@ -89,6 +90,7 @@ struct XComProperty
 		ByteProperty,
 		StructProperty,
 		ArrayProperty,
+		ObjectArrayProperty,
 		StaticArrayProperty
 	};
 
@@ -104,6 +106,7 @@ struct XComProperty
 		case Kind::ByteProperty: return "ByteProperty";
 		case Kind::StructProperty: return "StructProperty";
 		case Kind::ArrayProperty: return "ArrayProperty";
+		case Kind::ObjectArrayProperty: return "ArrayProperty";
 		case Kind::StaticArrayProperty: return "StaticArrayProperty";
 		default:
 			throw std::exception("getPropertyKindString: Invalid property kind\n");
@@ -132,9 +135,6 @@ protected:
 	Kind kind;
 };
 
-std::string getXcomKindString(XComProperty::Kind kind);
-
-
 // Properties are polymorphic types and are usually referenced by 
 // XComPropertyPtr values which are simply unique_ptrs to a property.
 using XComPropertyPtr = std::unique_ptr<XComProperty>;
@@ -147,6 +147,7 @@ struct XComObjectProperty;
 struct XComByteProperty;
 struct XComStructProperty;
 struct XComArrayProperty;
+struct XComObjectArrayProperty;
 struct XComStaticArrayProperty;
 
 // Visit all property types.
@@ -160,6 +161,8 @@ struct XComPropertyVisitor
 	virtual void visitByte(XComByteProperty*) = 0;
 	virtual void visitStruct(XComStructProperty*) = 0;
 	virtual void visitArray(XComArrayProperty*) = 0;
+	virtual void visitObjectArray(XComObjectArrayProperty*) = 0;
+
 	virtual void visitStaticArray(XComStaticArrayProperty*) = 0;
 };
 
@@ -295,6 +298,21 @@ struct XComArrayProperty : public XComProperty
 
 	void accept(XComPropertyVisitor *v) {
 		v->visitArray(this);
+	}
+};
+
+struct XComObjectArrayProperty : public XComProperty
+{
+	XComObjectArrayProperty(const std::string& n, std::vector<uint32_t> objs) :
+		XComProperty(n, Kind::ObjectArrayProperty), elements(objs) {}
+
+	std::vector<uint32_t> elements;
+
+	uint32_t size() const {
+		return 4 + 8 * elements.size();
+	}
+	void accept(XComPropertyVisitor* v) {
+		v->visitObjectArray(this);
 	}
 };
 

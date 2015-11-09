@@ -110,6 +110,39 @@ XComActorTable XComReader::readActorTable()
 	return actorTable;
 }
 
+XComPropertyPtr XComReader::makeArrayProperty(const std::string &name, uint32_t propSize)
+{
+	uint32_t arrayBound = readInt32();
+	std::unique_ptr<unsigned char[]> arrayData;
+	int array_data_size = (int)propSize - 4;
+	if (array_data_size > 0) {
+		if (arrayBound * 8 == array_data_size) {
+			// Looks like an array of objects
+			std::vector<uint32_t> elems;
+			for (uint32_t i = 0; i < arrayBound; ++i) {
+				uint32_t actor1 = readInt32();
+				uint32_t actor2 = readInt32();
+				if (actor1 == 0xffffffff && actor2 == 0xffffffff) {
+					elems.push_back(actor1);
+				}
+				else if (actor1 != (actor2 + 1)) {
+					throw std::exception("Error: malformed object array: expected related actor numbers\n");
+				}
+				else {
+					elems.push_back(actor1 / 2);
+				}
+			}
+			return std::make_unique<XComObjectArrayProperty>(name, elems);
+		}
+		else {
+			arrayData = std::make_unique<unsigned char[]>(array_data_size);
+			memcpy(arrayData.get(), ptr_, array_data_size);
+			ptr_ += array_data_size;
+		}
+	}
+	return std::make_unique<XComArrayProperty>(name, std::move(arrayData), array_data_size, arrayBound);
+}
+
 XComPropertyList XComReader::readProperties(uint32_t dataLen)
 {
 	const unsigned char *endpos = ptr_ + dataLen;
@@ -165,14 +198,7 @@ XComPropertyList XComReader::readProperties(uint32_t dataLen)
 			prop = std::make_unique<XComBoolProperty>(name, boolVal);
 		}
 		else if (propType.compare("ArrayProperty") == 0) {
-			uint32_t arrayBound = readInt32();
-			std::unique_ptr<unsigned char[]> arrayData;
-			if (propSize > 4) {
-				arrayData = std::make_unique<unsigned char[]>(propSize - 4);
-				memcpy(arrayData.get(), ptr_, propSize - 4);
-				ptr_ += (propSize - 4);
-			}
-			prop = std::make_unique<XComArrayProperty>(name, std::move(arrayData), propSize - 4, arrayBound);
+			prop = makeArrayProperty(name, propSize);
 		}
 		else if (propType.compare("FloatProperty") == 0) {
 			float f = readFloat();

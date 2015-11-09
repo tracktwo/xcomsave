@@ -127,8 +127,14 @@ struct PropertyWriterVisitor : public XComPropertyVisitor
 
 	virtual void visitObject(XComObjectProperty *prop) override
 	{
-		writer_->writeInt(prop->actor * 2 + 1);
-		writer_->writeInt(prop->actor * 2);
+		if (prop->actor == 0xffffffff) {
+			writer_->writeInt(prop->actor);
+			writer_->writeInt(prop->actor);
+		}
+		else {
+			writer_->writeInt(prop->actor * 2 + 1);
+			writer_->writeInt(prop->actor * 2);
+		}
 	}
 
 	virtual void visitByte(XComByteProperty *prop) override
@@ -162,6 +168,21 @@ struct PropertyWriterVisitor : public XComPropertyVisitor
 		writer_->writeRawBytes(prop->data.get(), dataLen);
 	}
 
+	virtual void visitObjectArray(XComObjectArrayProperty* prop) override
+	{
+		writer_->writeInt(prop->elements.size());
+		for (size_t i = 0; i < prop->elements.size(); ++i) {
+			if (prop->elements[i] == 0xffffffff) {
+				writer_->writeInt(prop->elements[i]);
+				writer_->writeInt(prop->elements[i]);
+			}
+			else {
+				writer_->writeInt(prop->elements[i] * 2 + 1);
+				writer_->writeInt(prop->elements[i] * 2);
+			}
+		}
+	}
+
 	virtual void visitStaticArray(XComStaticArrayProperty *) override
 	{
 		// This shouldn't happen: static arrays need special handling and can't be written normally as they don't
@@ -172,23 +193,6 @@ struct PropertyWriterVisitor : public XComPropertyVisitor
 private:
 	XComWriter *writer_;
 };
-
-std::string propKindToString(XComProperty::Kind k)
-{
-	switch (k)
-	{
-	case XComProperty::Kind::IntProperty: return "IntProperty";
-	case XComProperty::Kind::StrProperty: return "StrProperty";
-	case XComProperty::Kind::BoolProperty: return "BoolProperty";
-	case XComProperty::Kind::FloatProperty: return "FloatProperty";
-	case XComProperty::Kind::ObjectProperty: return "ObjectProperty";
-	case XComProperty::Kind::ByteProperty: return "ByteProperty";
-	case XComProperty::Kind::StructProperty: return "StructProperty";
-	case XComProperty::Kind::ArrayProperty: return "ArrayProperty";
-	default:
-		throw new std::exception("Unknown property kind");
-	}
-}
 
 void XComWriter::writeProperty(const XComPropertyPtr& prop, uint32_t arrayIdx)
 {
@@ -203,7 +207,7 @@ void XComWriter::writeProperty(const XComPropertyPtr& prop, uint32_t arrayIdx)
 		// Write the common part of a property
 		writeString(prop->getName());
 		writeInt(0);
-		writeString(propKindToString(prop->getKind()));
+		writeString(prop->kind_string());
 		writeInt(0);
 		writeInt(prop->size());
 		writeInt(arrayIdx);
