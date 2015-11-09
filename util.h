@@ -9,13 +9,6 @@
 #define DBG(msg, ...)
 #endif
 
-
-struct Buffer
-{
-	std::unique_ptr<unsigned char[]> buf;
-	size_t len;
-};
-
 unsigned int crc32b(const unsigned char *message, long len);
 
 std::string iso8859_1toutf8(const std::string& in);

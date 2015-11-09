@@ -296,13 +296,27 @@ struct JsonPropertyVisitor : public XComPropertyVisitor
 		w.beginObject();
 		writeCommon(prop);
 		w.writeKey("actors");
-		w.beginArray();
+		w.beginArray(true);
 		for (unsigned int i = 0; i < prop->elements.size(); ++i) {
 			w.writeBareInt(prop->elements[i], true);
 		}
 		w.endArray();
 		w.endObject();
 	}
+
+	virtual void visitNumberArray(XComNumberArrayProperty *prop) override
+	{
+		w.beginObject();
+		writeCommon(prop);
+		w.writeKey("elements");
+		w.beginArray(true);
+		for (unsigned int i = 0; i < prop->elements.size(); ++i) {
+			w.writeBareInt(prop->elements[i], true);
+		}
+		w.endArray();
+		w.endObject();
+	}
+
 	virtual void visitStaticArray(XComStaticArrayProperty *prop) override
 	{
 		w.beginObject();

@@ -168,6 +168,16 @@ size_t XComProperty::full_size() const
 	return total;
 }
 
+size_t XComStringProperty::size() const
+{
+	if (str.empty()) {
+		return 4;
+	}
+	// 4 for string length + 1 for terminating null. Make sure to use the ISO-8859-1 encoded length!
+	std::string tmp = utf8toiso8859_1(str);
+	return tmp.length() + 5;
+}
+
 std::string build_actor_name(const std::string& package, const std::string& cls, int instance)
 {
 	std::stringstream ret;

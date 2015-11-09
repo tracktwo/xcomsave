@@ -9,10 +9,11 @@
 #include <algorithm>
 #include <exception>
 
-#include "util.h"
-
-// The magic number that occurs at the begining of each compressed chunk.
-static const int Chunk_Magic = 0x9e2a83c1;
+struct Buffer
+{
+	std::unique_ptr<unsigned char[]> buf;
+	size_t len;
+};
 
 // The header occurs at the start of the save file and is the only uncompressed part
 // of the save. The first 1024 bytes of the save are the header, although most of
@@ -77,7 +78,20 @@ struct XComPropertyVisitor;
 
 // An Unreal property. Saved actors and other objects are made up of property values.
 // These can be simple primitive values (int, float, bool, string, enums), object values (actors),
-// or aggregate types (arrays, structs, and static arrays of another property type)
+// or aggregate types (arrays, structs, and static arrays of another property type).
+//
+// Most of the kinds are present directly in the saved game, but arrays have some special handling
+// here to make them easier to deal with:
+//
+// Dynamic arrays are all represented identically in the save but have different representations
+// in this library. They can be one of the following kinds:
+//
+// ObjectArrayProperty - An array of objects (actors). Contents are simply actor reference numbers.
+// NumberArrayProperty - An array of numbers. Could be integers or floats, depending on the particular
+// property. There is no unambiguous way to distinguish the two cases from analyzing the save file alone,
+// you need to "know" the real type of the object by looking in the corresponding UPK file. Array data
+// is represented as an array of ints, but may need to be cast to floats if appropriate.
+// ArrayProperty - An array of 
 struct XComProperty
 {
 	enum class Kind
@@ -91,6 +105,7 @@ struct XComProperty
 		StructProperty,
 		ArrayProperty,
 		ObjectArrayProperty,
+		NumberArrayProperty,
 		StaticArrayProperty
 	};
 
@@ -105,8 +120,10 @@ struct XComProperty
 		case Kind::ObjectProperty: return "ObjectProperty";
 		case Kind::ByteProperty: return "ByteProperty";
 		case Kind::StructProperty: return "StructProperty";
-		case Kind::ArrayProperty: return "ArrayProperty";
-		case Kind::ObjectArrayProperty: return "ArrayProperty";
+		case Kind::ArrayProperty: 
+		case Kind::ObjectArrayProperty: 
+		case Kind::NumberArrayProperty: 
+			return "ArrayProperty";	
 		case Kind::StaticArrayProperty: return "StaticArrayProperty";
 		default:
 			throw std::exception("getPropertyKindString: Invalid property kind\n");
@@ -148,6 +165,7 @@ struct XComByteProperty;
 struct XComStructProperty;
 struct XComArrayProperty;
 struct XComObjectArrayProperty;
+struct XComNumberArrayProperty;
 struct XComStaticArrayProperty;
 
 // Visit all property types.
@@ -162,7 +180,7 @@ struct XComPropertyVisitor
 	virtual void visitStruct(XComStructProperty*) = 0;
 	virtual void visitArray(XComArrayProperty*) = 0;
 	virtual void visitObjectArray(XComObjectArrayProperty*) = 0;
-
+	virtual void visitNumberArray(XComNumberArrayProperty*) = 0;
 	virtual void visitStaticArray(XComStaticArrayProperty*) = 0;
 };
 
@@ -256,14 +274,7 @@ struct XComStringProperty : public XComProperty
 
 	std::string str;
 
-	size_t size() const {
-		if (str.empty()) {
-			return 4;
-		}
-		// 4 for string length + 1 for terminating null. Make sure to use the ISO-8859-1 encoded length!
-		std::string tmp = utf8toiso8859_1(str);
-		return tmp.length() + 5;
-	}
+	size_t size() const;
 
 	void accept(XComPropertyVisitor *v) {
 		v->visitString(this);
@@ -308,11 +319,28 @@ struct XComObjectArrayProperty : public XComProperty
 
 	std::vector<int32_t> elements;
 
-	size_t size() const {
+	virtual size_t size() const {
 		return 4 + 8 * elements.size();
 	}
+
 	void accept(XComPropertyVisitor* v) {
 		v->visitObjectArray(this);
+	}
+};
+
+struct XComNumberArrayProperty : public XComProperty
+{
+	XComNumberArrayProperty(const std::string& n, std::vector<int32_t> objs) :
+		XComProperty(n, Kind::NumberArrayProperty), elements(objs) {}
+	
+	std::vector<int32_t> elements;
+
+	virtual size_t size() const {
+		return 4 + 4 * elements.size();
+	}
+
+	void accept(XComPropertyVisitor *v) {
+		v->visitNumberArray(this);
 	}
 };
 

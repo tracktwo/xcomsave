@@ -1,5 +1,6 @@
 #include "xcomwriter.h"
 #include "minilzo.h"
+#include "xslib_internal.h"
 #include <cassert>
 #include <tuple>
 void XComWriter::ensureSpace(size_t count)
@@ -168,7 +169,7 @@ struct PropertyWriterVisitor : public XComPropertyVisitor
 		writer_->writeRawBytes(prop->data.get(), dataLen);
 	}
 
-	virtual void visitObjectArray(XComObjectArrayProperty* prop) override
+	virtual void visitObjectArray(XComObjectArrayProperty *prop) override
 	{
 		writer_->writeInt(prop->elements.size());
 		for (size_t i = 0; i < prop->elements.size(); ++i) {
@@ -183,11 +184,19 @@ struct PropertyWriterVisitor : public XComPropertyVisitor
 		}
 	}
 
+	virtual void visitNumberArray(XComNumberArrayProperty *prop) override
+	{
+		writer_->writeInt(prop->elements.size());
+		for (size_t i = 0; i < prop->elements.size(); ++i) {
+			writer_->writeInt(prop->elements[i]);
+		}
+	}
+
 	virtual void visitStaticArray(XComStaticArrayProperty *) override
 	{
 		// This shouldn't happen: static arrays need special handling and can't be written normally as they don't
 		// really exist in the save format.
-		assert(false);
+		throw std::exception("Attempted to write a static array property");
 	}
 
 private:
@@ -316,7 +325,7 @@ Buffer XComWriter::compress()
 			fprintf(stderr, "Error compressing data: %d", ret);
 		}
 		// Write the magic number
-		*reinterpret_cast<int*>(compressedPtr) = Chunk_Magic;
+		*reinterpret_cast<int*>(compressedPtr) = UPK_Magic;
 		compressedPtr += 4;
 		// Write the "flags" (?)
 		*reinterpret_cast<int*>(compressedPtr) = chunkFlags;

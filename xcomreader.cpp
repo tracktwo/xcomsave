@@ -1,6 +1,8 @@
 #include "minilzo.h"
 #include "xcomreader.h"
 #include "util.h"
+#include "xslib_internal.h"
+
 #include <string>
 #include <memory>
 #include <cassert>
@@ -133,6 +135,15 @@ XComPropertyPtr XComReader::makeArrayProperty(const std::string &name, int32_t p
 				}
 			}
 			return std::make_unique<XComObjectArrayProperty>(name, elems);
+		}
+		else if (arrayBound * 4 == array_data_size) {
+			// Looks like an array of ints or floats
+			std::vector<int32_t> elems;
+			for (int i = 0; i < arrayBound; ++i) {
+				elems.push_back(readInt());
+			}
+
+			return std::make_unique<XComNumberArrayProperty>(name, elems);
 		}
 		else {
 			arrayData = std::make_unique<unsigned char[]>(array_data_size);
@@ -371,7 +382,7 @@ int32_t XComReader::getuncompressed_size()
 	do
 	{
 		// Expect the magic header value 0x9e2a83c1 at the start of each chunk
-		if (*(reinterpret_cast<const int32_t*>(p)) != Chunk_Magic) {
+		if (*(reinterpret_cast<const int32_t*>(p)) != UPK_Magic) {
 			fprintf(stderr, "Failed to find compressed chunk at offset 0x%08x", offset());
 			return -1;
 		}
@@ -397,7 +408,7 @@ void XComReader::getUncompressedData(unsigned char *buf)
 	do
 	{
 		// Expect the magic header value 0x9e2a83c1 at the start of each chunk
-		if (*(reinterpret_cast<const uint32_t*>(p)) != Chunk_Magic) {
+		if (*(reinterpret_cast<const uint32_t*>(p)) != UPK_Magic) {
 			fprintf(stderr, "Failed to find compressed chunk at offset 0x%08x", (p - start_.get()));
 			return;
 		}
