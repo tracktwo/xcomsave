@@ -24,15 +24,15 @@ private:
 		return ptr_ - start_.get();
 	}
 
-	uint32_t readInt32();
+	int32_t readInt();
 	float readFloat();
 	std::string readString();
 	bool readBool();
 	XComSaveHeader readHeader();
 	XComActorTable readActorTable();
 	XComCheckpointTable readCheckpointTable();
-	std::vector<std::unique_ptr<XComProperty>> readProperties(uint32_t dataLen);
-	XComPropertyPtr makeArrayProperty(const std::string& name, uint32_t propSize);
+	std::vector<std::unique_ptr<XComProperty>> readProperties(int32_t dataLen);
+	XComPropertyPtr makeArrayProperty(const std::string& name, int32_t propSize);
 	XComActorTemplateTable readActorTemplateTable();
 	XComNameTable readNameTable();
 	int32_t getuncompressed_size();

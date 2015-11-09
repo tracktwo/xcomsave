@@ -34,17 +34,17 @@ static const int Chunk_Magic = 0x9e2a83c1;
 struct XComSaveHeader
 {
 	// XCom save version (always 0x10)
-	uint32_t version;
+	int32_t version;
 
 	// From the upk packages this looks like it should be the total
 	// uncompressed size of the save data. In practice It's always all zeros.
-	uint32_t uncompressed_size;
+	int32_t uncompressed_size;
 
 	// The game number
-	uint32_t game_number;
+	int32_t game_number;
 
 	// The save number
-	uint32_t save_number;
+	int32_t save_number;
 
 	// The readable save description. This appears in the load game list.
 	std::string save_description;
@@ -124,9 +124,9 @@ struct XComProperty
 		return name;
 	}
 
-	virtual uint32_t size() const = 0;
+	virtual size_t size() const = 0;
 
-	virtual uint32_t full_size() const;
+	virtual size_t full_size() const;
 
 	virtual void accept(XComPropertyVisitor* v) = 0;
 
@@ -174,14 +174,14 @@ using XComPropertyList = std::vector<XComPropertyPtr>;
 // TODO Replace the data with the actor references.
 struct XComObjectProperty : public XComProperty
 {
-	XComObjectProperty(const std::string &n, uint32_t a) :
+	XComObjectProperty(const std::string &n, int32_t a) :
 		XComProperty(n, Kind::ObjectProperty), actor(a) {}
 
-	uint32_t size() const {
+	size_t size() const {
 		return 8;
 	}
 
-	uint32_t actor;
+	int32_t actor;
 
 	void accept(XComPropertyVisitor *v) {
 		v->visitObject(this);
@@ -196,7 +196,7 @@ struct XComIntProperty : public XComProperty
 
 	int32_t value;
 
-	uint32_t size() const {
+	size_t size() const {
 		return 4;
 	}
 
@@ -213,13 +213,13 @@ struct XComBoolProperty : public XComProperty
 
 	bool value;
 
-	uint32_t size() const {
+	size_t size() const {
 
 		// Bool properties report as size 0
 		return 0;
 	}
 
-	virtual uint32_t full_size() const {
+	virtual size_t full_size() const {
 		return XComProperty::full_size() + 1;
 	}
 
@@ -236,7 +236,7 @@ struct XComFloatProperty : public XComProperty
 
 	float value;
 
-	uint32_t size() const {
+	size_t size() const {
 		return 4;
 	}
 
@@ -256,7 +256,7 @@ struct XComStringProperty : public XComProperty
 
 	std::string str;
 
-	uint32_t size() const {
+	size_t size() const {
 		if (str.empty()) {
 			return 4;
 		}
@@ -285,14 +285,14 @@ struct XComStringProperty : public XComProperty
 //    looked up in the actor table.
 struct XComArrayProperty : public XComProperty
 {
-	XComArrayProperty(const std::string& n, std::unique_ptr<unsigned char[]>&& a, uint32_t dl, uint32_t b) :
+	XComArrayProperty(const std::string& n, std::unique_ptr<unsigned char[]>&& a, int32_t dl, int32_t b) :
 		XComProperty(n, Kind::ArrayProperty), data(std::move(a)), data_length(dl), arrayBound(b) {}
 
 	std::unique_ptr<unsigned char[]> data;
-	uint32_t arrayBound;
-	uint32_t data_length;
+	int32_t arrayBound;
+	int32_t data_length;
 
-	uint32_t size() const {
+	size_t size() const {
 		return 4 + data_length;
 	}
 
@@ -303,12 +303,12 @@ struct XComArrayProperty : public XComProperty
 
 struct XComObjectArrayProperty : public XComProperty
 {
-	XComObjectArrayProperty(const std::string& n, std::vector<uint32_t> objs) :
+	XComObjectArrayProperty(const std::string& n, std::vector<int32_t> objs) :
 		XComProperty(n, Kind::ObjectArrayProperty), elements(objs) {}
 
-	std::vector<uint32_t> elements;
+	std::vector<int32_t> elements;
 
-	uint32_t size() const {
+	size_t size() const {
 		return 4 + 8 * elements.size();
 	}
 	void accept(XComPropertyVisitor* v) {
@@ -320,19 +320,19 @@ struct XComObjectArrayProperty : public XComProperty
 // am not entirely sure how to interpret, but is commonly used in LW extended enums.
 struct XComByteProperty : public XComProperty
 {
-	XComByteProperty(const std::string& n,const std::string &et, const std::string &ev, uint32_t i) :
+	XComByteProperty(const std::string& n,const std::string &et, const std::string &ev, int32_t i) :
 		XComProperty(n, Kind::ByteProperty), enumType(et), enumVal(ev), extVal(i) {}
 
 	std::string enumType;
 	std::string enumVal;
-	uint32_t extVal;
+	int32_t extVal;
 
-	uint32_t size() const {
-		// 2 * string length + 2 * trailing null + int for extVal = 8 + 2 + 4 = 14.
-		return /*enumType.length() + */enumVal.length() + 5 + 4;
+	size_t size() const {
+		// size does not include the size of the enum type string
+		return enumVal.length() + 5 + 4;
 	}
 
-	virtual uint32_t full_size() const {
+	virtual size_t full_size() const {
 		// full size must also include the length of the inner "unknown" value and the enum Type string length.
 		return XComProperty::full_size() + enumType.length() + 5  + 4;
 	}
@@ -348,21 +348,22 @@ struct XComStructProperty : public XComProperty
 	XComStructProperty(const std::string &n, const std::string &sn, XComPropertyList &&propList) :
 		XComProperty(n, Kind::StructProperty), structName(sn), structProps(std::move(propList)), nativeData(), nativeDataLen(0) {}
 
-	XComStructProperty(const std::string& n, const std::string &sn, std::unique_ptr<unsigned char[]> &&nd, uint32_t l) :
+	XComStructProperty(const std::string& n, const std::string &sn, std::unique_ptr<unsigned char[]> &&nd, size_t l) :
 		XComProperty(n, Kind::StructProperty), structName(sn), nativeData(std::move(nd)), nativeDataLen(l) {}
 
 	std::string structName;
 	XComPropertyList structProps;
 	std::unique_ptr<unsigned char[]> nativeData;
-	uint32_t nativeDataLen;
+	size_t nativeDataLen;
 
-	uint32_t size() const {
-		// Name length + name data + trailing null + unknown 0 int value = len + 4 + 1 + 4 = len + 9 bytes.
-		uint32_t total = 0;//structName.length() + 5 + 4;
+	size_t size() const {
+		// Size does not include the struct name itself
 		if (nativeDataLen > 0) {
-			return total + nativeDataLen;
+			return nativeDataLen;
 		}
 		else {
+			size_t total = 0;
+
 			std::for_each(structProps.begin(), structProps.end(), [&total](const XComPropertyPtr &prop) {
 				total += prop->full_size();
 			});
@@ -373,8 +374,8 @@ struct XComStructProperty : public XComProperty
 		}
 	}
 
-	virtual uint32_t full_size() const {
-		uint32_t total = XComProperty::full_size();
+	virtual size_t full_size() const {
+		size_t total = XComProperty::full_size();
 		total += structName.length() + 5 + 4;
 		return total;
 	}
@@ -401,17 +402,17 @@ struct XComStaticArrayProperty : public XComProperty
 		return properties.size();
 	}
 
-	uint32_t size() const {
-		uint32_t total = 0;
+	virtual size_t size() const {
+		size_t total = 0;
 		std::for_each(properties.begin(), properties.end(), [&total](const XComPropertyPtr &prop) {
 			total += prop->size();
 		});
 		return total;
 	}
 
-	virtual uint32_t full_size() const
+	virtual size_t full_size() const
 	{
-		uint32_t total = 0;
+		size_t total = 0;
 		std::for_each(properties.begin(), properties.end(), [&total](const XComPropertyPtr &prop) {
 			total += prop->full_size();
 		});
@@ -454,10 +455,10 @@ struct XComCheckpoint
 	XComPropertyList properties;
 
 	// The index for this actor into the actor template table. Appears to be unused in strategy saves.
-	uint32_t templateIndex;
+	int32_t templateIndex;
 
 	// The number of padding bytes (all zeros) appended to the checkpoint.
-	uint32_t padSize;
+	size_t padSize;
 };
 
 using XComCheckpointTable = std::vector<XComCheckpoint>;
@@ -477,7 +478,7 @@ struct XComNameEntry
 {
 	std::string name;
 	unsigned char zeros[8];
-	uint32_t dataLen;
+	size_t dataLen;
 	unsigned char *data;
 };
 
@@ -490,7 +491,7 @@ using XComNameTable = std::vector<XComNameEntry>;
 // in strategy saves.
 struct XComCheckpointChunk
 {
-	uint32_t unknownInt1;
+	int32_t unknownInt1;
 	
 	// The "game type". For strategy saves, this is "Command1".
 	std::string gameType;
@@ -499,7 +500,7 @@ struct XComCheckpointChunk
 	XComCheckpointTable checkpointTable;
 
 	// Unknown
-	uint32_t unknownInt2;
+	int32_t unknownInt2;
 
 	// The class for this chunk. E.g. a top-level game type, like XComStrategyGame.XComHeadquartersGame.
 	std::string className;
@@ -508,7 +509,7 @@ struct XComCheckpointChunk
 	XComActorTable actorTable;
 
 	// Unknown
-	uint32_t unknownInt3;
+	int32_t unknownInt3;
 
 	// The display name for this save chunk. Unknown.
 	std::string displayName;
@@ -517,7 +518,7 @@ struct XComCheckpointChunk
 	std::string mapName;
 
 	// Unknown.
-	uint32_t unknownInt4;
+	int32_t unknownInt4;
 };
 
 using XComCheckpointChunkTable = std::vector<XComCheckpointChunk>;

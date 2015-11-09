@@ -5,9 +5,9 @@
 #include <memory>
 #include <cassert>
 
-uint32_t XComReader::readInt32()
+int32_t XComReader::readInt()
 {
-	uint32_t v = *(reinterpret_cast<const uint32_t*>(ptr_));
+	int32_t v = *(reinterpret_cast<const int32_t*>(ptr_));
 	ptr_ += 4;
 	return v;
 }
@@ -21,12 +21,12 @@ float XComReader::readFloat()
 
 bool XComReader::readBool()
 {
-	return readInt32() != 0;
+	return readInt() != 0;
 }
 
 std::string XComReader::readString()
 {
-	uint32_t len = readInt32();
+	int32_t len = readInt();
 	if (len == 0) {
 		return "";
 	}
@@ -48,14 +48,14 @@ std::string XComReader::readString()
 XComSaveHeader XComReader::readHeader()
 {
 	XComSaveHeader hdr;
-	hdr.version = readInt32();
+	hdr.version = readInt();
 	if (hdr.version != 0x10) {
 		fprintf(stderr, "Error: Data does not appear to be an xcom save: expected file version 16 but got %d\n", hdr.version);
 		return {0};
 	}
-	hdr.uncompressed_size = readInt32();
-	hdr.game_number = readInt32();
-	hdr.save_number = readInt32();
+	hdr.uncompressed_size = readInt();
+	hdr.game_number = readInt();
+	hdr.save_number = readInt();
 	hdr.save_description = readString();
 	hdr.time = readString();
 	hdr.map_command = readString();
@@ -64,12 +64,12 @@ XComSaveHeader XComReader::readHeader()
 	hdr.autosave = readBool();
 	hdr.dlc = readString();
 	hdr.language = readString();
-	uint32_t compressedCrc = readInt32();
+	uint32_t compressedCrc = (uint32_t)readInt();
 
 	// Compute the CRC of the header
 	ptr_ = start_.get() + 1016;
-	uint32_t hdrSize = readInt32();
-	uint32_t hdrCrc = readInt32();
+	int32_t hdrSize = readInt();
+	uint32_t hdrCrc = (uint32_t)readInt();
 	uint32_t computedHeaderCrc = crc32b(start_.get(), hdrSize);
 	if (hdrCrc != computedHeaderCrc)
 	{
@@ -87,42 +87,42 @@ XComSaveHeader XComReader::readHeader()
 XComActorTable XComReader::readActorTable()
 {
 	XComActorTable actorTable;
-	uint32_t actorCount = readInt32();
+	int32_t actorCount = readInt();
 
 	// We expect all entries to be of the form <package> <0> <actor> <instance>, or two entries
 	// per real actor.
 	assert(actorCount % 2 == 0);
 
-	for (unsigned int i = 0; i < actorCount; i += 2) {
+	for (int i = 0; i < actorCount; i += 2) {
 		std::string actorName = readString();
-		uint32_t instanceNum = readInt32();
+		int32_t instanceNum = readInt();
 		if (instanceNum == 0) {
 			throw std::exception("Error: malformed actor table entry: expected a non-zero instance\n");
 		}
 		std::string package = readString();
-		uint32_t sentinel = readInt32();
+		int32_t sentinel = readInt();
 		if (sentinel != 0) {
 			throw std::exception("Error: malformed actor table entry: missing 0 instance\n");
 		}
-		actorTable.push_back(build_actor_name(package, actorName, (int)instanceNum));
+		actorTable.push_back(build_actor_name(package, actorName, instanceNum));
 	}
 
 	return actorTable;
 }
 
-XComPropertyPtr XComReader::makeArrayProperty(const std::string &name, uint32_t propSize)
+XComPropertyPtr XComReader::makeArrayProperty(const std::string &name, int32_t propSize)
 {
-	uint32_t arrayBound = readInt32();
+	int32_t arrayBound = readInt();
 	std::unique_ptr<unsigned char[]> arrayData;
-	int array_data_size = (int)propSize - 4;
+	int array_data_size = propSize - 4;
 	if (array_data_size > 0) {
 		if (arrayBound * 8 == array_data_size) {
 			// Looks like an array of objects
-			std::vector<uint32_t> elems;
-			for (uint32_t i = 0; i < arrayBound; ++i) {
-				uint32_t actor1 = readInt32();
-				uint32_t actor2 = readInt32();
-				if (actor1 == 0xffffffff && actor2 == 0xffffffff) {
+			std::vector<int32_t> elems;
+			for (int32_t i = 0; i < arrayBound; ++i) {
+				int32_t actor1 = readInt();
+				int32_t actor2 = readInt();
+				if (actor1 == -1 && actor2 == -1) {
 					elems.push_back(actor1);
 				}
 				else if (actor1 != (actor2 + 1)) {
@@ -143,14 +143,14 @@ XComPropertyPtr XComReader::makeArrayProperty(const std::string &name, uint32_t 
 	return std::make_unique<XComArrayProperty>(name, std::move(arrayData), array_data_size, arrayBound);
 }
 
-XComPropertyList XComReader::readProperties(uint32_t dataLen)
+XComPropertyList XComReader::readProperties(int32_t dataLen)
 {
 	const unsigned char *endpos = ptr_ + dataLen;
 	XComPropertyList properties;
 	while (ptr_ < endpos)
 	{
 		std::string name = readString();
-		uint32_t unknown1 = readInt32();
+		int32_t unknown1 = readInt();
 		if (unknown1 != 0) {
 			DBG("Read non-zero prop unknown value: %x\n", unknown1);
 		}
@@ -159,37 +159,37 @@ XComPropertyList XComReader::readProperties(uint32_t dataLen)
 			break;
 		}
 		std::string propType = readString();
-		uint32_t unknown2 = readInt32();
+		int32_t unknown2 = readInt();
 		if (unknown2 != 0) {
 			DBG("Read non-zero prop unknown2 value: %x\n", unknown2);
 		}
-		uint32_t propSize = readInt32();
-		uint32_t arrayIdx = readInt32();
+		int32_t propSize = readInt();
+		int32_t arrayIdx = readInt();
 
 		XComPropertyPtr prop;
 		if (propType.compare("ObjectProperty") == 0) {
 			assert(propSize == 8);
-			uint32_t objRef1 = readInt32();
-			uint32_t objRef2 = readInt32();
-			if (objRef1 != 0xffffffff && objRef1 != (objRef2 + 1)) {
+			int32_t objRef1 = readInt();
+			int32_t objRef2 = readInt();
+			if (objRef1 != -1 && objRef1 != (objRef2 + 1)) {
 				throw std::exception("Assertion failed: object references not related.\n");
 			}
 
-			prop = std::make_unique<XComObjectProperty>(name, (objRef1 == 0xffffffff) ? objRef1 : (objRef1 / 2));
+			prop = std::make_unique<XComObjectProperty>(name, (objRef1 == -1) ? objRef1 : (objRef1 / 2));
 		}
 		else if (propType.compare("IntProperty") == 0) {
 			assert(propSize == 4);
-			uint32_t intVal = readInt32();
+			int32_t intVal = readInt();
 			prop = std::make_unique<XComIntProperty>(name, intVal);
 		}
 		else if (propType.compare("ByteProperty") == 0) {
 			std::string enumType = readString();
-			uint32_t innerUnknown = readInt32();
+			int32_t innerUnknown = readInt();
 			if (innerUnknown != 0) {
 				DBG("Read non-zero prop unknown3 value: %x\n", innerUnknown);
 			}
 			std::string enumVal = readString();
-			uint32_t extVal = readInt32();
+			int32_t extVal = readInt();
 			prop = std::make_unique<XComByteProperty>(name, enumType, enumVal, extVal);
 		}
 		else if (propType.compare("BoolProperty") == 0) {
@@ -206,7 +206,7 @@ XComPropertyList XComReader::readProperties(uint32_t dataLen)
 		}
 		else if (propType.compare("StructProperty") == 0) {
 			std::string structName = readString();
-			uint32_t innerUnknown = readInt32();
+			int32_t innerUnknown = readInt();
 			if (innerUnknown != 0) {
 				DBG("Read non-zero prop unknown3 value: %x\n", innerUnknown);
 			}
@@ -278,24 +278,27 @@ XComPropertyList XComReader::readProperties(uint32_t dataLen)
 XComCheckpointTable XComReader::readCheckpointTable()
 {
 	XComCheckpointTable checkpointTable;
-	uint32_t checkpointCount = readInt32();
+	int32_t checkpointCount = readInt();
 
-	for (unsigned int i = 0; i < checkpointCount; ++i) {
+	for (int i = 0; i < checkpointCount; ++i) {
 		XComCheckpoint chk;
 		chk.name = readString();
 		chk.instanceName = readString();
 		chk.vector[0] = readFloat();
 		chk.vector[1] = readFloat();
 		chk.vector[2] = readFloat();
-		chk.rotator[0] = readInt32();
-		chk.rotator[1] = readInt32();
-		chk.rotator[2] = readInt32();
+		chk.rotator[0] = readInt();
+		chk.rotator[1] = readInt();
+		chk.rotator[2] = readInt();
 		chk.className = readString();
-		uint32_t propLen = readInt32();
+		int32_t propLen = readInt();
+		if (propLen < 0) {
+			throw std::exception("Error: Found negative property length\n");
+		}
 		chk.padSize = 0;
 		const unsigned char* startPtr = ptr_;
 		chk.properties = readProperties(propLen);
-		if (uint32_t(ptr_ - startPtr) < propLen) {
+		if ((ptr_ - startPtr) < propLen) {
 			chk.padSize = propLen - (ptr_ - startPtr);
 
 			for (unsigned int i = 0; i < chk.padSize; ++i) {
@@ -304,13 +307,13 @@ XComCheckpointTable XComReader::readCheckpointTable()
 				}
 			}
 		}
-		uint32_t totalPropSize = 0;
+		size_t totalPropSize = 0;
 		std::for_each(chk.properties.begin(), chk.properties.end(), [&totalPropSize](const XComPropertyPtr& prop) {
 			totalPropSize += prop->full_size();
 		});
 		totalPropSize += 9 + 4; // length of trailing "None" to terminate the list + the unknown int.
-		assert(propLen == (totalPropSize + chk.padSize));
-		chk.templateIndex = readInt32();
+		assert((uint32_t)propLen == (totalPropSize + chk.padSize));
+		chk.templateIndex = readInt();
 		checkpointTable.push_back(std::move(chk));
 	}
 
@@ -320,9 +323,9 @@ XComCheckpointTable XComReader::readCheckpointTable()
 XComActorTemplateTable XComReader::readActorTemplateTable()
 {
 	XComActorTemplateTable templateTable;
-	uint32_t templateCount = readInt32();
+	int32_t templateCount = readInt();
 
-	for (unsigned int i = 0; i < templateCount; ++i) {
+	for (int i = 0; i < templateCount; ++i) {
 		XComActorTemplate tmpl;
 		tmpl.actorClassPath = readString();
 		memcpy(tmpl.loadParams, ptr_, 64);
@@ -338,9 +341,9 @@ XComNameTable XComReader::readNameTable()
 {
 	static unsigned char allZeros[8] = { 0 };
 	XComNameTable nameTable;
-	uint32_t nameCount = readInt32();
+	int32_t nameCount = readInt();
 
-	for (unsigned int i = 0; i < nameCount; ++i) {
+	for (int i = 0; i < nameCount; ++i) {
 		XComNameEntry entry;
 		entry.name = readString();
 		memcpy(entry.zeros, ptr_, 8);
@@ -349,7 +352,7 @@ XComNameTable XComReader::readNameTable()
 			fprintf(stderr, "Error: Expected all zeros in name table entry");
 			return{};
 		}
-		entry.dataLen = readInt32();
+		entry.dataLen = readInt();
 		entry.data = new unsigned char[entry.dataLen];
 		memcpy(entry.data, ptr_, entry.dataLen);
 		ptr_ += entry.dataLen;
@@ -368,7 +371,7 @@ int32_t XComReader::getuncompressed_size()
 	do
 	{
 		// Expect the magic header value 0x9e2a83c1 at the start of each chunk
-		if (*(reinterpret_cast<const uint32_t*>(p)) != 0x9e2a83c1) {
+		if (*(reinterpret_cast<const int32_t*>(p)) != Chunk_Magic) {
 			fprintf(stderr, "Failed to find compressed chunk at offset 0x%08x", offset());
 			return -1;
 		}
@@ -400,10 +403,10 @@ void XComReader::getUncompressedData(unsigned char *buf)
 		}
 
 		// Compressed size is at p+8
-		uint32_t compressedSize = *(reinterpret_cast<const unsigned long*>(p + 8));
+		int32_t compressedSize = *(reinterpret_cast<const int32_t *>(p + 8));
 
 		// Uncompressed size is at p+12
-		uint32_t uncompressed_size = *(reinterpret_cast<const unsigned long*>(p + 12));
+		int32_t uncompressed_size = *(reinterpret_cast<const int32_t*>(p + 12));
 		
 		unsigned long decompSize = uncompressed_size;
 
@@ -442,7 +445,7 @@ XComSave XComReader::getSaveData()
 	int totalUncompressed = 0;
 	save.header = readHeader();
 
-	uint32_t uncompressed_size = getuncompressed_size();
+	int32_t uncompressed_size = getuncompressed_size();
 	if (uncompressed_size < 0) {
 		return {};
 	}
@@ -461,7 +464,7 @@ XComSave XComReader::getSaveData()
 	// Jump back to here after each chunk
 	do {
 		XComCheckpointChunk chunk;
-		chunk.unknownInt1 = readInt32();
+		chunk.unknownInt1 = readInt();
 		chunk.gameType = readString();
 		std::string none = readString();
 		if (none != "None") {
@@ -469,11 +472,11 @@ XComSave XComReader::getSaveData()
 			return{};
 		}
 		
-		chunk.unknownInt2 = readInt32();
+		chunk.unknownInt2 = readInt();
 		chunk.checkpointTable = readCheckpointTable();
 		DBG("Finished reading checkpoint table at offset %x\n", offset());
 
-		uint32_t nameTableLen = readInt32();
+		int32_t nameTableLen = readInt();
 		assert(nameTableLen == 0);
 
 #if 0
@@ -487,7 +490,7 @@ XComSave XComReader::getSaveData()
 		chunk.actorTable = readActorTable();
 		DBG("Finished reading second actor table (%x) at offset %x\n", chunk.actorTable.size(), offset());
 
-		chunk.unknownInt3 = readInt32();
+		chunk.unknownInt3 = readInt();
 
 		XComActorTemplateTable actorTemplateTable = readActorTemplateTable(); // (only seems to be present for tactical saves?)
 		assert(actorTemplateTable.size() == 0);
@@ -495,7 +498,7 @@ XComSave XComReader::getSaveData()
 
 		chunk.displayName = readString(); //unknown (game name)
 		chunk.mapName = readString(); //unknown (map name)
-		chunk.unknownInt4 = readInt32(); //unknown  (checksum?)
+		chunk.unknownInt4 = readInt(); //unknown  (checksum?)
 
 		save.checkpoints.push_back(std::move(chunk));
 	}

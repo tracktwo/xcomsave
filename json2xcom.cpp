@@ -235,7 +235,7 @@ XComPropertyPtr buildStructProperty(const Json& json)
 	std::unique_ptr<unsigned char[]> data;
 	const std::string & nativeDataStr = json["native_data"].string_value();
 	if (nativeDataStr != "") {
-		uint32_t dataLen = nativeDataStr.length() / 2;
+		size_t dataLen = nativeDataStr.length() / 2;
 		data = fromHex(nativeDataStr);
 		return std::make_unique<XComStructProperty>(json["name"].string_value(), json["struct_name"].string_value(), std::move(data), dataLen);
 	}
@@ -287,7 +287,7 @@ XComPropertyPtr buildObjectArrayProperty(const Json& json)
 		throw std::exception("Error reading json file: format mismatch in object array property");
 	}
 
-	std::vector<uint32_t> elements;
+	std::vector<int32_t> elements;
 
 	for (const Json& elem : json["actors"].array_items()) {
 		elements.push_back(elem.int_value());

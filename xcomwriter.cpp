@@ -2,12 +2,12 @@
 #include "minilzo.h"
 #include <cassert>
 #include <tuple>
-void XComWriter::ensureSpace(uint32_t count)
+void XComWriter::ensureSpace(size_t count)
 {
 	ptrdiff_t currentCount = offset();
 
 	if ((currentCount + count) > bufLen_) {
-		uint32_t newLen = bufLen_ * 2;
+		size_t newLen = bufLen_ * 2;
 		unsigned char * newBuf = new unsigned char[newLen];
 		memcpy(newBuf, start_.get(), currentCount);
 		start_.reset(newBuf);
@@ -34,10 +34,10 @@ void XComWriter::writeString(const std::string& str)
 	}
 }
 
-void XComWriter::writeInt(uint32_t val)
+void XComWriter::writeInt(int32_t val)
 {
 	ensureSpace(4);
-	*(reinterpret_cast<uint32_t*>(buf_)) = val;
+	*(reinterpret_cast<int32_t*>(buf_)) = val;
 	buf_ += 4;
 }
 
@@ -54,7 +54,7 @@ void XComWriter::writeBool(bool b)
 	writeInt(b);
 }
 
-void XComWriter::writeRawBytes(unsigned char *buf, uint32_t len)
+void XComWriter::writeRawBytes(unsigned char *buf, size_t len)
 {
 	ensureSpace(len);
 	memcpy(buf_, buf, len);
@@ -80,7 +80,7 @@ void XComWriter::writeHeader(const XComSaveHeader& header)
 	uint32_t compressedCrc = crc32b(start_.get() + 1024, bufLen_ - 1024);
 	writeInt(compressedCrc);
 	
-	uint32_t hdrLen = buf_ - start_.get() + 4;
+	int32_t hdrLen = buf_ - start_.get() + 4;
 	buf_ = start_.get() + 1016;
 	writeInt(hdrLen);
 	uint32_t hdrCrc = crc32b(start_.get(), hdrLen);
@@ -164,7 +164,7 @@ struct PropertyWriterVisitor : public XComPropertyVisitor
 	virtual void visitArray(XComArrayProperty *prop) override
 	{
 		writer_->writeInt(prop->arrayBound);
-		uint32_t dataLen = prop->size() - 4;
+		size_t dataLen = prop->size() - 4;
 		writer_->writeRawBytes(prop->data.get(), dataLen);
 	}
 
@@ -194,7 +194,7 @@ private:
 	XComWriter *writer_;
 };
 
-void XComWriter::writeProperty(const XComPropertyPtr& prop, uint32_t arrayIdx)
+void XComWriter::writeProperty(const XComPropertyPtr& prop, int32_t arrayIdx)
 {
 	// If this is a static array property we need to write only the contained properties, not the fake static array property created to contain it.
 	if (prop->getKind() == XComProperty::Kind::StaticArrayProperty) {
@@ -229,7 +229,7 @@ void XComWriter::writeCheckpoint(const XComCheckpoint& chk)
 	writeInt(chk.rotator[1]);
 	writeInt(chk.rotator[2]);
 	writeString(chk.className);
-	uint32_t totalPropSize = 0;
+	size_t totalPropSize = 0;
 	std::for_each(chk.properties.begin(), chk.properties.end(), [&totalPropSize](const XComPropertyPtr& prop) {
 		totalPropSize += prop->full_size();
 	});

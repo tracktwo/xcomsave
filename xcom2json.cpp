@@ -134,10 +134,10 @@ struct JsonWriter
 		needs_comma = false;
 	}
 
-	void writeInt(const std::string &name, uint32_t val, bool omitNewline = false)
+	void writeInt(const std::string &name, int32_t val, bool omitNewline = false)
 	{
 		writeKey(name);
-		out << (int)val;
+		out << val;
 		enditem(omitNewline);
 	}
 
@@ -260,7 +260,7 @@ struct JsonPropertyVisitor : public XComPropertyVisitor
 		w.writeString("struct_name", prop->structName);
 
 		if (prop->nativeDataLen > 0) {
-			uint32_t strLen = prop->nativeDataLen * 2 + 1;
+			int32_t strLen = prop->nativeDataLen * 2 + 1;
 			w.writeString("native_data", toHex(prop->nativeData.get(), prop->nativeDataLen));
 			w.writeKey("properties");
 			w.beginArray(true);

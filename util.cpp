@@ -94,10 +94,10 @@ static unsigned char fromHexNibble(char c)
 	throw std::exception(str.c_str());
 }
 
-std::string toHex(const unsigned char *data, uint32_t dataLen)
+std::string toHex(const unsigned char *data, size_t dataLen)
 {
 	std::string str;
-	for (uint32_t i = 0; i < dataLen; ++i) {
+	for (size_t i = 0; i < dataLen; ++i) {
 		str += toHexNibble(data[i] >> 4);
 		str += toHexNibble(data[i] & 0x0F);
 	}
@@ -155,9 +155,9 @@ std::string utf8toiso8859_1(const std::string& in)
 	return out;
 }
 
-uint32_t XComProperty::full_size() const
+size_t XComProperty::full_size() const
 {
-	uint32_t total = size();
+	size_t total = size();
 	total += name.length() + 5;
 	total += 4; //unknown 1
 	total += kind_string().length() + 5;
