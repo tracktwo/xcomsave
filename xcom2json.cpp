@@ -7,6 +7,7 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include <algorithm>
 
 static std::string escape(const std::string& str) {
 	std::string ret;
@@ -199,7 +200,7 @@ struct JsonPropertyVisitor : public XComPropertyVisitor
 
 	void writeCommon(XComProperty* prop, bool omitNewlines = false)
 	{
-		w.writeString("name", prop->getName(), omitNewlines);
+		w.writeString("name", prop->name, omitNewlines);
 		w.writeString("kind", prop->kind_string(), omitNewlines);
 	}
 
@@ -285,8 +286,8 @@ struct JsonPropertyVisitor : public XComPropertyVisitor
 		w.beginObject();
 		writeCommon(prop);
 		w.writeInt("data_length", prop->data_length);
-		w.writeInt("array_bound", prop->arrayBound);
-		std::string dataStr = (prop->arrayBound > 0) ? toHex(prop->data.get(), prop->data_length) : "";
+		w.writeInt("array_bound", prop->array_bound);
+		std::string dataStr = (prop->array_bound > 0) ? toHex(prop->data.get(), prop->data_length) : "";
 		w.writeString("data", dataStr);
 		w.endObject();
 	}
@@ -313,6 +314,24 @@ struct JsonPropertyVisitor : public XComPropertyVisitor
 		for (unsigned int i = 0; i < prop->elements.size(); ++i) {
 			w.writeBareInt(prop->elements[i], true);
 		}
+		w.endArray();
+		w.endObject();
+	}
+
+	virtual void visitStructArray(XComStructArrayProperty *prop) override
+	{
+		w.beginObject();
+		writeCommon(prop);
+		w.writeKey("structs");
+		w.beginArray();
+		std::for_each(prop->elements.begin(), prop->elements.end(), [this](const XComPropertyList& pl) {
+			w.beginArray();
+			std::for_each(pl.begin(), pl.end(), [this](const XComPropertyPtr& p) {
+				p->accept(this);
+			});
+			w.endArray();
+		});
+
 		w.endArray();
 		w.endObject();
 	}

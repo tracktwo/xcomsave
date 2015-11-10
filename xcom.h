@@ -106,48 +106,18 @@ struct XComProperty
 		ArrayProperty,
 		ObjectArrayProperty,
 		NumberArrayProperty,
-		StaticArrayProperty
+		StructArrayProperty,
+		StaticArrayProperty,
+		Max
 	};
-
-	std::string kind_string() const
-	{
-		switch (kind)
-		{
-		case Kind::IntProperty: return "IntProperty";
-		case Kind::FloatProperty: return "FloatProperty";
-		case Kind::BoolProperty: return "BoolProperty";
-		case Kind::StrProperty: return "StrProperty";
-		case Kind::ObjectProperty: return "ObjectProperty";
-		case Kind::ByteProperty: return "ByteProperty";
-		case Kind::StructProperty: return "StructProperty";
-		case Kind::ArrayProperty: 
-		case Kind::ObjectArrayProperty: 
-		case Kind::NumberArrayProperty: 
-			return "ArrayProperty";	
-		case Kind::StaticArrayProperty: return "StaticArrayProperty";
-		default:
-			throw std::exception("getPropertyKindString: Invalid property kind\n");
-		}
-	}
-
 
 	XComProperty(const std::string &n, Kind k) : name(n), kind(k) {}
 
-	Kind getKind() const {
-		return kind;
-	}
-
-	std::string getName() const {
-		return name;
-	}
-
+	std::string kind_string() const;
 	virtual size_t size() const = 0;
-
 	virtual size_t full_size() const;
-
 	virtual void accept(XComPropertyVisitor* v) = 0;
-
-protected:
+	
 	std::string name;
 	Kind kind;
 };
@@ -166,6 +136,7 @@ struct XComStructProperty;
 struct XComArrayProperty;
 struct XComObjectArrayProperty;
 struct XComNumberArrayProperty;
+struct XComStructArrayProperty;
 struct XComStaticArrayProperty;
 
 // Visit all property types.
@@ -181,6 +152,7 @@ struct XComPropertyVisitor
 	virtual void visitArray(XComArrayProperty*) = 0;
 	virtual void visitObjectArray(XComObjectArrayProperty*) = 0;
 	virtual void visitNumberArray(XComNumberArrayProperty*) = 0;
+	virtual void visitStructArray(XComStructArrayProperty*) = 0;
 	virtual void visitStaticArray(XComStaticArrayProperty*) = 0;
 };
 
@@ -195,15 +167,15 @@ struct XComObjectProperty : public XComProperty
 	XComObjectProperty(const std::string &n, int32_t a) :
 		XComProperty(n, Kind::ObjectProperty), actor(a) {}
 
-	size_t size() const {
+	virtual size_t size() const {
 		return 8;
 	}
 
-	int32_t actor;
-
-	void accept(XComPropertyVisitor *v) {
+	virtual void accept(XComPropertyVisitor *v) {
 		v->visitObject(this);
 	}
+
+	int32_t actor;
 };
 
 // An int property contains a 32-bit signed integer value.
@@ -212,15 +184,15 @@ struct XComIntProperty : public XComProperty
 	XComIntProperty(const std::string& n, int32_t v) :
 		XComProperty(n, Kind::IntProperty), value(v) {}
 
-	int32_t value;
-
-	size_t size() const {
+	virtual size_t size() const {
 		return 4;
 	}
 
-	void accept(XComPropertyVisitor *v) {
+	virtual void accept(XComPropertyVisitor *v) {
 		v->visitInt(this);
 	}
+
+	int32_t value;
 };
 
 // A bool property contains a boolean value.
@@ -229,9 +201,7 @@ struct XComBoolProperty : public XComProperty
 	XComBoolProperty(const std::string &n, bool v) :
 		XComProperty(n, Kind::BoolProperty), value(v) {}
 
-	bool value;
-
-	size_t size() const {
+	virtual size_t size() const {
 
 		// Bool properties report as size 0
 		return 0;
@@ -241,9 +211,11 @@ struct XComBoolProperty : public XComProperty
 		return XComProperty::full_size() + 1;
 	}
 
-	void accept(XComPropertyVisitor *v) {
+	virtual void accept(XComPropertyVisitor *v) {
 		v->visitBool(this);
 	}
+
+	bool value;
 };
 
 // A float property contains a single-precision floating point value.
@@ -252,15 +224,15 @@ struct XComFloatProperty : public XComProperty
 	XComFloatProperty(const std::string &n, float f) :
 		XComProperty(n, Kind::FloatProperty), value(f) {}
 
-	float value;
-
-	size_t size() const {
+	virtual size_t size() const {
 		return 4;
 	}
 
-	void accept(XComPropertyVisitor *v) {
+	virtual void accept(XComPropertyVisitor *v) {
 		v->visitFloat(this);
 	}
+
+	float value;
 };
 
 // A string property contains a string value. For INT saves, these are recorded in ISO-8859-1 format,
@@ -272,13 +244,13 @@ struct XComStringProperty : public XComProperty
 	XComStringProperty(const std::string& n, const std::string& s) :
 		XComProperty(n, Kind::StrProperty), str(s) {}
 
-	std::string str;
+	virtual size_t size() const;
 
-	size_t size() const;
-
-	void accept(XComPropertyVisitor *v) {
+	virtual void accept(XComPropertyVisitor *v) {
 		v->visitString(this);
 	}
+
+	std::string str;
 };
 
 // A dynamic array property. Represents an Unreal dynamic array. They have a known array bound, but 
@@ -297,19 +269,19 @@ struct XComStringProperty : public XComProperty
 struct XComArrayProperty : public XComProperty
 {
 	XComArrayProperty(const std::string& n, std::unique_ptr<unsigned char[]>&& a, int32_t dl, int32_t b) :
-		XComProperty(n, Kind::ArrayProperty), data(std::move(a)), data_length(dl), arrayBound(b) {}
+		XComProperty(n, Kind::ArrayProperty), data(std::move(a)), data_length(dl), array_bound(b) {}
 
-	std::unique_ptr<unsigned char[]> data;
-	int32_t arrayBound;
-	int32_t data_length;
-
-	size_t size() const {
+	virtual size_t size() const {
 		return 4 + data_length;
 	}
 
-	void accept(XComPropertyVisitor *v) {
+	virtual void accept(XComPropertyVisitor *v) {
 		v->visitArray(this);
 	}
+
+	std::unique_ptr<unsigned char[]> data;
+	int32_t array_bound;
+	int32_t data_length;
 };
 
 struct XComObjectArrayProperty : public XComProperty
@@ -317,15 +289,15 @@ struct XComObjectArrayProperty : public XComProperty
 	XComObjectArrayProperty(const std::string& n, std::vector<int32_t> objs) :
 		XComProperty(n, Kind::ObjectArrayProperty), elements(objs) {}
 
-	std::vector<int32_t> elements;
-
 	virtual size_t size() const {
 		return 4 + 8 * elements.size();
 	}
 
-	void accept(XComPropertyVisitor* v) {
+	virtual void accept(XComPropertyVisitor* v) {
 		v->visitObjectArray(this);
 	}
+
+	std::vector<int32_t> elements;
 };
 
 struct XComNumberArrayProperty : public XComProperty
@@ -333,27 +305,50 @@ struct XComNumberArrayProperty : public XComProperty
 	XComNumberArrayProperty(const std::string& n, std::vector<int32_t> objs) :
 		XComProperty(n, Kind::NumberArrayProperty), elements(objs) {}
 	
-	std::vector<int32_t> elements;
-
 	virtual size_t size() const {
 		return 4 + 4 * elements.size();
 	}
 
-	void accept(XComPropertyVisitor *v) {
+	virtual void accept(XComPropertyVisitor *v) {
 		v->visitNumberArray(this);
 	}
+
+	std::vector<int32_t> elements;
+};
+
+struct XComStructArrayProperty : public XComProperty
+{
+	XComStructArrayProperty(const std::string &n, std::vector<XComPropertyList> props) :
+		XComProperty(n, Kind::StructArrayProperty), elements(std::move(props)) {}
+
+	virtual size_t size() const {
+		// A struct array has the array bound plus 9 bytes per element for the terminating "None" string 
+		// plus 4 bytes per element for the unknown 0 integer that follows the none.
+		size_t total = 4 + 13 * elements.size();
+		std::for_each(elements.begin(), elements.end(), [&total](const XComPropertyList &pl) {
+			std::for_each(pl.begin(), pl.end(), [&total](const XComPropertyPtr& prop) {
+				total += prop->full_size();
+			});
+		});
+
+		return total;
+	}
+
+	virtual void accept(XComPropertyVisitor *v) {
+		v->visitStructArray(this);
+	}
+
+	std::vector<XComPropertyList> elements;
 };
 
 // A "byte" property, e.g. an enum value. Contains the enum type and enum value strings, as well as an "extra" value that I
-// am not entirely sure how to interpret, but is commonly used in LW extended enums.
+// am not entirely sure how to interpret, but is commonly used in LW extended enums. Vanilla enums generally have '0' for this
+// extra value for all members. LW extended enums typically re-use the names of an existing enum member, but each successive
+// additional entry with the same name has an extra value larger than the previous.
 struct XComByteProperty : public XComProperty
 {
 	XComByteProperty(const std::string& n,const std::string &et, const std::string &ev, int32_t i) :
 		XComProperty(n, Kind::ByteProperty), enumType(et), enumVal(ev), extVal(i) {}
-
-	std::string enumType;
-	std::string enumVal;
-	int32_t extVal;
 
 	size_t size() const {
 		// size does not include the size of the enum type string
@@ -368,6 +363,10 @@ struct XComByteProperty : public XComProperty
 	void accept(XComPropertyVisitor *v) {
 		v->visitByte(this);
 	}
+
+	std::string enumType;
+	std::string enumVal;
+	int32_t extVal;
 };
 
 // A struct property. Contains a nested list of properties for the struct elements.
@@ -379,38 +378,17 @@ struct XComStructProperty : public XComProperty
 	XComStructProperty(const std::string& n, const std::string &sn, std::unique_ptr<unsigned char[]> &&nd, size_t l) :
 		XComProperty(n, Kind::StructProperty), structName(sn), nativeData(std::move(nd)), nativeDataLen(l) {}
 
+	size_t size() const;
+
+	virtual size_t full_size() const;
+	void accept(XComPropertyVisitor *v) {
+		v->visitStruct(this);
+	}
+
 	std::string structName;
 	XComPropertyList structProps;
 	std::unique_ptr<unsigned char[]> nativeData;
 	size_t nativeDataLen;
-
-	size_t size() const {
-		// Size does not include the struct name itself
-		if (nativeDataLen > 0) {
-			return nativeDataLen;
-		}
-		else {
-			size_t total = 0;
-
-			std::for_each(structProps.begin(), structProps.end(), [&total](const XComPropertyPtr &prop) {
-				total += prop->full_size();
-			});
-			
-			// Add the size of the "None" property terminating the list: 9 for "None" and 4 for the unknown int
-			total += 9 + 4;
-			return total;
-		}
-	}
-
-	virtual size_t full_size() const {
-		size_t total = XComProperty::full_size();
-		total += structName.length() + 5 + 4;
-		return total;
-	}
-
-	void accept(XComPropertyVisitor *v) {
-		v->visitStruct(this);
-	}
 };
 
 // A static array property. Static arrays are not first-class objects in the save, they are instead represented by
@@ -421,8 +399,7 @@ struct XComStaticArrayProperty : public XComProperty
 	XComStaticArrayProperty(const std::string& n) :
 		XComProperty(n, Kind::StaticArrayProperty) {}
 
-	void addProperty(XComPropertyPtr&& ptr)
-	{
+	void addProperty(XComPropertyPtr&& ptr) {
 		properties.push_back(std::move(ptr));
 	}
 
@@ -438,8 +415,7 @@ struct XComStaticArrayProperty : public XComProperty
 		return total;
 	}
 
-	virtual size_t full_size() const
-	{
+	virtual size_t full_size() const {
 		size_t total = 0;
 		std::for_each(properties.begin(), properties.end(), [&total](const XComPropertyPtr &prop) {
 			total += prop->full_size();

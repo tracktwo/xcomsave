@@ -112,6 +112,67 @@ XComActorTable XComReader::readActorTable()
 	return actorTable;
 }
 
+XComPropertyPtr XComReader::makeStructProperty(const std::string &name)
+{
+	std::string structName = readString();
+	int32_t innerUnknown = readInt();
+	if (innerUnknown != 0) {
+		DBG("Read non-zero prop unknown3 value: %x\n", innerUnknown);
+	}
+	// Special case certain structs
+	if (structName.compare("Vector2D") == 0) {
+		std::unique_ptr<unsigned char[]> nativeData = std::make_unique<unsigned char[]>(8);
+		memcpy(nativeData.get(), ptr_, 8);
+		ptr_ += 8;
+		return std::make_unique<XComStructProperty>(name, structName, std::move(nativeData), 8);
+	}
+	else if (structName.compare("Vector") == 0) {
+		std::unique_ptr<unsigned char[]> nativeData = std::make_unique<unsigned char[]>(12);
+		memcpy(nativeData.get(), ptr_, 12);
+		ptr_ += 12;
+		return std::make_unique<XComStructProperty>(name, structName, std::move(nativeData), 12);
+	}
+	else {
+		XComPropertyList structProps = readProperties();
+		return std::make_unique<XComStructProperty>(name, structName, std::move(structProps));
+	}
+}
+
+bool isStructArray(const unsigned char *ptr)
+{
+	// Sniff the first part of the array data to see if it looks like a string.
+
+	int32_t strLen = *reinterpret_cast<const int*>(ptr);
+	if (strLen > 0 && strLen < 100) {
+		const char *str = reinterpret_cast<const char *>(ptr) + 4;
+		if (str[strLen] == 0 && strlen(str) == (strLen - 1))
+		{
+			// Ok, looks like a name string. Distinguish between a struct
+			// array and a enum array by looking at the next string. if it's a property
+			// kind, then we have a property list and this is a struct. If it's not, then
+			// we must have an enum array.
+
+			// Skip over the string length, string data, and zero int.
+			ptr += 4 + strLen + 4;
+			strLen = *reinterpret_cast<const int*>(ptr);
+			if (strLen > 0 && strLen < 100) {
+				str = reinterpret_cast<const char *>(ptr + 4);
+				if (str[strLen] == 0 && strlen(str) == (strLen - 1))
+				{
+					for (int i = 0; i < static_cast<int>(XComProperty::Kind::Max); ++i) {
+						if (property_kind_to_string(static_cast<XComProperty::Kind>(i)) == str) {
+							return true;
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return false;
+}
+
+
 XComPropertyPtr XComReader::makeArrayProperty(const std::string &name, int32_t propSize)
 {
 	int32_t arrayBound = readInt();
@@ -145,7 +206,16 @@ XComPropertyPtr XComReader::makeArrayProperty(const std::string &name, int32_t p
 
 			return std::make_unique<XComNumberArrayProperty>(name, elems);
 		}
+		else if (isStructArray(ptr_)) {
+			std::vector<XComPropertyList> elems;
+			for (int32_t i = 0; i < arrayBound; ++i) {
+				elems.push_back(readProperties());
+			}
+
+			return std::make_unique<XComStructArrayProperty>(name, std::move(elems));
+		}
 		else {
+			// Nope, dunno what this thing is.
 			arrayData = std::make_unique<unsigned char[]>(array_data_size);
 			memcpy(arrayData.get(), ptr_, array_data_size);
 			ptr_ += array_data_size;
@@ -154,11 +224,10 @@ XComPropertyPtr XComReader::makeArrayProperty(const std::string &name, int32_t p
 	return std::make_unique<XComArrayProperty>(name, std::move(arrayData), array_data_size, arrayBound);
 }
 
-XComPropertyList XComReader::readProperties(int32_t dataLen)
+XComPropertyList XComReader::readProperties()
 {
-	const unsigned char *endpos = ptr_ + dataLen;
 	XComPropertyList properties;
-	while (ptr_ < endpos)
+	for (;;)
 	{
 		std::string name = readString();
 		int32_t unknown1 = readInt();
@@ -216,30 +285,7 @@ XComPropertyList XComReader::readProperties(int32_t dataLen)
 			prop = std::make_unique<XComFloatProperty>(name, f);
 		}
 		else if (propType.compare("StructProperty") == 0) {
-			std::string structName = readString();
-			int32_t innerUnknown = readInt();
-			if (innerUnknown != 0) {
-				DBG("Read non-zero prop unknown3 value: %x\n", innerUnknown);
-			}
-			// Special case certain structs
-			if (structName.compare("Vector2D") == 0) {
-				assert(propSize == 8);
-				std::unique_ptr<unsigned char[]> nativeData = std::make_unique<unsigned char[]>(8);
-				memcpy(nativeData.get(), ptr_, 8);
-				ptr_ += 8;
-				prop = std::make_unique<XComStructProperty>(name, structName, std::move(nativeData), 8);
-			} 
-			else if (structName.compare("Vector") == 0) {
-				assert(propSize == 12);
-				std::unique_ptr<unsigned char[]> nativeData = std::make_unique<unsigned char[]>(12);
-				memcpy(nativeData.get(), ptr_, 12);
-				ptr_ += 12;
-				prop = std::make_unique<XComStructProperty>(name, structName, std::move(nativeData), 12);
-			}
-			else {
-				XComPropertyList structProps = readProperties(propSize);
-				prop = std::make_unique<XComStructProperty>(name, structName, std::move(structProps));
-			}
+			prop = makeStructProperty(name);
 		}
 		else if (propType.compare("StrProperty") == 0) {
 			std::string str = readString();
@@ -256,11 +302,11 @@ XComPropertyList XComReader::readProperties(int32_t dataLen)
 				properties.push_back(std::move(prop));
 			}
 			else {
-				if (properties.back()->getName().compare(name) != 0) {
+				if (properties.back()->name.compare(name) != 0) {
 					DBG("Static array index found but doesn't match last property at offset 0x%x\n", ptr_ - start_.get());
 				}
 
-				if (properties.back()->getKind() == XComProperty::Kind::StaticArrayProperty) {
+				if (properties.back()->kind == XComProperty::Kind::StaticArrayProperty) {
 					// We already have a static array. Sanity check the array index and add it
 					assert(arrayIdx == static_cast<XComStaticArrayProperty*>(properties.back().get())->length());
 					static_cast<XComStaticArrayProperty*>(properties.back().get())->addProperty(std::move(prop));
@@ -308,7 +354,8 @@ XComCheckpointTable XComReader::readCheckpointTable()
 		}
 		chk.padSize = 0;
 		const unsigned char* startPtr = ptr_;
-		chk.properties = readProperties(propLen);
+
+		chk.properties = readProperties();
 		if ((ptr_ - startPtr) < propLen) {
 			chk.padSize = propLen - (ptr_ - startPtr);
 

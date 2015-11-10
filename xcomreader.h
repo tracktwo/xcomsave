@@ -31,8 +31,9 @@ private:
 	XComSaveHeader readHeader();
 	XComActorTable readActorTable();
 	XComCheckpointTable readCheckpointTable();
-	std::vector<std::unique_ptr<XComProperty>> readProperties(int32_t dataLen);
+	std::vector<std::unique_ptr<XComProperty>> readProperties();
 	XComPropertyPtr makeArrayProperty(const std::string& name, int32_t propSize);
+	XComPropertyPtr makeStructProperty(const std::string& name);
 	XComActorTemplateTable readActorTemplateTable();
 	XComNameTable readNameTable();
 	int32_t getuncompressed_size();

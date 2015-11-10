@@ -28,6 +28,7 @@ XComPropertyPtr buildArrayProperty(const Json& json);
 XComPropertyPtr buildStaticArrayProperty(const Json& json);
 XComPropertyPtr buildObjectArrayProperty(const Json& json);
 XComPropertyPtr buildNumberArrayProperty(const Json& json);
+XComPropertyPtr buildStructArrayProperty(const Json& json);
 
 
 static PropertyDispatch propertyDispatch[] = {
@@ -197,8 +198,6 @@ XComPropertyPtr buildObjectProperty(const Json& json)
 		throw std::exception("Error reading json file: format mismatch in object property");
 	}
 
-
-
 	return std::make_unique<XComObjectProperty>(json["name"].string_value(), json["actor"].int_value());
 }
 
@@ -254,6 +253,9 @@ XComPropertyPtr buildArrayProperty(const Json& json)
 	} 
 	else if (json["elements"] != Json()) {
 		return buildNumberArrayProperty(json);
+	}
+	else if (json["structs"] != Json()) {
+		return buildStructArrayProperty(json);
 	}
 
 	std::string err;
@@ -319,6 +321,28 @@ XComPropertyPtr buildNumberArrayProperty(const Json& json)
 	}
 
 	return std::make_unique<XComNumberArrayProperty>(json["name"].string_value(), elements);
+}
+
+XComPropertyPtr buildStructArrayProperty(const Json& json)
+{
+	std::string err;
+
+	Json::shape shape = {
+		{ "name", Json::STRING },
+		{ "structs", Json::ARRAY },
+	};
+
+	if (!json.has_shape(shape, err)) {
+		throw std::exception("Error reading json file: format mismatch in object array property");
+	}
+
+	std::vector<XComPropertyList> elements;
+
+	for (const Json& elem : json["structs"].array_items()) {
+		elements.push_back(buildPropertyList(elem));
+	}
+
+	return std::make_unique<XComStructArrayProperty>(json["name"].string_value(), std::move(elements));
 }
 
 XComPropertyPtr buildStaticArrayProperty(const Json& json)

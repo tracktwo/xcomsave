@@ -168,6 +168,33 @@ size_t XComProperty::full_size() const
 	return total;
 }
 
+std::string property_kind_to_string(XComProperty::Kind kind)
+{
+	switch (kind)
+	{
+	case XComProperty::Kind::IntProperty: return "IntProperty";
+	case XComProperty::Kind::FloatProperty: return "FloatProperty";
+	case XComProperty::Kind::BoolProperty: return "BoolProperty";
+	case XComProperty::Kind::StrProperty: return "StrProperty";
+	case XComProperty::Kind::ObjectProperty: return "ObjectProperty";
+	case XComProperty::Kind::ByteProperty: return "ByteProperty";
+	case XComProperty::Kind::StructProperty: return "StructProperty";
+	case XComProperty::Kind::ArrayProperty:
+	case XComProperty::Kind::ObjectArrayProperty:
+	case XComProperty::Kind::NumberArrayProperty:
+	case XComProperty::Kind::StructArrayProperty:
+		return "ArrayProperty";
+	case XComProperty::Kind::StaticArrayProperty: return "StaticArrayProperty";
+	default:
+		throw std::exception("getPropertyKindString: Invalid property kind\n");
+	}
+}
+
+std::string XComProperty::kind_string() const
+{
+	return property_kind_to_string(kind);
+}
+
 size_t XComStringProperty::size() const
 {
 	if (str.empty()) {
@@ -176,6 +203,32 @@ size_t XComStringProperty::size() const
 	// 4 for string length + 1 for terminating null. Make sure to use the ISO-8859-1 encoded length!
 	std::string tmp = utf8toiso8859_1(str);
 	return tmp.length() + 5;
+}
+
+size_t XComStructProperty::full_size() const
+{
+	size_t total = XComProperty::full_size();
+	total += structName.length() + 5 + 4;
+	return total;
+}
+
+size_t XComStructProperty::size() const
+{
+	// Size does not include the struct name itself
+	if (nativeDataLen > 0) {
+		return nativeDataLen;
+	}
+	else {
+		size_t total = 0;
+
+		std::for_each(structProps.begin(), structProps.end(), [&total](const XComPropertyPtr &prop) {
+			total += prop->full_size();
+		});
+
+		// Add the size of the "None" property terminating the list: 9 for "None" and 4 for the unknown int
+		total += 9 + 4;
+		return total;
+	}
 }
 
 std::string build_actor_name(const std::string& package, const std::string& cls, int instance)

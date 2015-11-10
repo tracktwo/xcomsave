@@ -164,7 +164,7 @@ struct PropertyWriterVisitor : public XComPropertyVisitor
 
 	virtual void visitArray(XComArrayProperty *prop) override
 	{
-		writer_->writeInt(prop->arrayBound);
+		writer_->writeInt(prop->array_bound);
 		size_t dataLen = prop->size() - 4;
 		writer_->writeRawBytes(prop->data.get(), dataLen);
 	}
@@ -192,6 +192,20 @@ struct PropertyWriterVisitor : public XComPropertyVisitor
 		}
 	}
 
+	virtual void visitStructArray(XComStructArrayProperty *prop) override
+	{
+		writer_->writeInt(prop->elements.size());
+		std::for_each(prop->elements.begin(), prop->elements.end(), [this](const XComPropertyList &pl) {
+			std::for_each(pl.begin(), pl.end(), [this](const XComPropertyPtr& p) {
+				writer_->writeProperty(p, 0);
+			});
+
+			// Write the "None" to indicate the end of this struct.
+			writer_->writeString("None");
+			writer_->writeInt(0);
+		});
+	}
+
 	virtual void visitStaticArray(XComStaticArrayProperty *) override
 	{
 		// This shouldn't happen: static arrays need special handling and can't be written normally as they don't
@@ -206,7 +220,7 @@ private:
 void XComWriter::writeProperty(const XComPropertyPtr& prop, int32_t arrayIdx)
 {
 	// If this is a static array property we need to write only the contained properties, not the fake static array property created to contain it.
-	if (prop->getKind() == XComProperty::Kind::StaticArrayProperty) {
+	if (prop->kind == XComProperty::Kind::StaticArrayProperty) {
 		XComStaticArrayProperty* staticArray = dynamic_cast<XComStaticArrayProperty*>(prop.get());
 		for (unsigned int idx = 0; idx < staticArray->length(); ++idx) {
 			writeProperty(staticArray->properties[idx], idx);
@@ -214,7 +228,7 @@ void XComWriter::writeProperty(const XComPropertyPtr& prop, int32_t arrayIdx)
 	}
 	else {
 		// Write the common part of a property
-		writeString(prop->getName());
+		writeString(prop->name);
 		writeInt(0);
 		writeString(prop->kind_string());
 		writeInt(0);
