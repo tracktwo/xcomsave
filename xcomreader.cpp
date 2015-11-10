@@ -7,559 +7,554 @@
 #include <memory>
 #include <cassert>
 
-int32_t XComReader::readInt()
+namespace xcom
 {
-	int32_t v = *(reinterpret_cast<const int32_t*>(ptr_));
-	ptr_ += 4;
-	return v;
-}
-
-float XComReader::readFloat()
-{
-	float f = *(reinterpret_cast<const float*>(ptr_));
-	ptr_ += 4;
-	return f;
-}
-
-bool XComReader::readBool()
-{
-	return readInt() != 0;
-}
-
-std::string XComReader::readString()
-{
-	int32_t len = readInt();
-	if (len == 0) {
-		return "";
-	}
-	const char *str = reinterpret_cast<const char *>(ptr_);
-	size_t actualLen = strlen(str);
-	
-	// Double check the length matches what we read from the file, considering the trailing null is counted in the length 
-	// stored in the file.
-	if (actualLen != (len-1))
+	int32_t reader::read_int()
 	{
-		fprintf(stderr, "Error: String mismatch at offset %d. Expected length %d but got %d\n", ptr_ - start_.get(), len, actualLen);
-		return "<error>";
+		int32_t v = *(reinterpret_cast<const int32_t*>(ptr_));
+		ptr_ += 4;
+		return v;
 	}
 
-	ptr_ += len;
-	return iso8859_1toutf8(str);
-}
-
-XComSaveHeader XComReader::readHeader()
-{
-	XComSaveHeader hdr;
-	hdr.version = readInt();
-	if (hdr.version != 0x10) {
-		fprintf(stderr, "Error: Data does not appear to be an xcom save: expected file version 16 but got %d\n", hdr.version);
-		return {0};
-	}
-	hdr.uncompressed_size = readInt();
-	hdr.game_number = readInt();
-	hdr.save_number = readInt();
-	hdr.save_description = readString();
-	hdr.time = readString();
-	hdr.map_command = readString();
-	hdr.tactical_save = readBool();
-	hdr.ironman = readBool();
-	hdr.autosave = readBool();
-	hdr.dlc = readString();
-	hdr.language = readString();
-	uint32_t compressedCrc = (uint32_t)readInt();
-
-	// Compute the CRC of the header
-	ptr_ = start_.get() + 1016;
-	int32_t hdrSize = readInt();
-	uint32_t hdrCrc = (uint32_t)readInt();
-	uint32_t computedHeaderCrc = crc32b(start_.get(), hdrSize);
-	if (hdrCrc != computedHeaderCrc)
+	float reader::read_float()
 	{
-		throw std::exception("CRC mismatch in header. Bad save?");
+		float f = *(reinterpret_cast<const float*>(ptr_));
+		ptr_ += 4;
+		return f;
 	}
 
-	uint32_t computedCompressedCrc = crc32b(start_.get() + 1024, length_ - 1024);
-	if (computedCompressedCrc != compressedCrc)
+	bool reader::read_bool()
 	{
-		throw std::exception("CRC mismatch in compressed data. Bad save?");
+		return read_int() != 0;
 	}
-	return hdr;
-}
 
-XComActorTable XComReader::readActorTable()
-{
-	XComActorTable actorTable;
-	int32_t actorCount = readInt();
-
-	// We expect all entries to be of the form <package> <0> <actor> <instance>, or two entries
-	// per real actor.
-	assert(actorCount % 2 == 0);
-
-	for (int i = 0; i < actorCount; i += 2) {
-		std::string actorName = readString();
-		int32_t instanceNum = readInt();
-		if (instanceNum == 0) {
-			throw std::exception("Error: malformed actor table entry: expected a non-zero instance\n");
+	std::string reader::read_string()
+	{
+		int32_t length = read_int();
+		if (length == 0) {
+			return "";
 		}
-		std::string package = readString();
-		int32_t sentinel = readInt();
-		if (sentinel != 0) {
-			throw std::exception("Error: malformed actor table entry: missing 0 instance\n");
-		}
-		actorTable.push_back(build_actor_name(package, actorName, instanceNum));
-	}
+		const char *str = reinterpret_cast<const char *>(ptr_);
+		size_t actual_length = strlen(str);
 
-	return actorTable;
-}
-
-XComPropertyPtr XComReader::makeStructProperty(const std::string &name)
-{
-	std::string structName = readString();
-	int32_t innerUnknown = readInt();
-	if (innerUnknown != 0) {
-		DBG("Read non-zero prop unknown3 value: %x\n", innerUnknown);
-	}
-	// Special case certain structs
-	if (structName.compare("Vector2D") == 0) {
-		std::unique_ptr<unsigned char[]> nativeData = std::make_unique<unsigned char[]>(8);
-		memcpy(nativeData.get(), ptr_, 8);
-		ptr_ += 8;
-		return std::make_unique<XComStructProperty>(name, structName, std::move(nativeData), 8);
-	}
-	else if (structName.compare("Vector") == 0) {
-		std::unique_ptr<unsigned char[]> nativeData = std::make_unique<unsigned char[]>(12);
-		memcpy(nativeData.get(), ptr_, 12);
-		ptr_ += 12;
-		return std::make_unique<XComStructProperty>(name, structName, std::move(nativeData), 12);
-	}
-	else {
-		XComPropertyList structProps = readProperties();
-		return std::make_unique<XComStructProperty>(name, structName, std::move(structProps));
-	}
-}
-
-bool isStructArray(const unsigned char *ptr)
-{
-	// Sniff the first part of the array data to see if it looks like a string.
-
-	int32_t strLen = *reinterpret_cast<const int*>(ptr);
-	if (strLen > 0 && strLen < 100) {
-		const char *str = reinterpret_cast<const char *>(ptr) + 4;
-		if (str[strLen] == 0 && strlen(str) == (strLen - 1))
+		// Double check the length matches what we read from the file, considering the trailing null is counted in the length 
+		// stored in the file.
+		if (actual_length != (length - 1))
 		{
-			// Ok, looks like a name string. Distinguish between a struct
-			// array and a enum array by looking at the next string. if it's a property
-			// kind, then we have a property list and this is a struct. If it's not, then
-			// we must have an enum array.
+			fprintf(stderr, "Error: String mismatch at offset %d. Expected length %d but got %d\n", ptr_ - start_.get(), length, actual_length);
+			return "<error>";
+		}
 
-			// Skip over the string length, string data, and zero int.
-			ptr += 4 + strLen + 4;
-			strLen = *reinterpret_cast<const int*>(ptr);
-			if (strLen > 0 && strLen < 100) {
-				str = reinterpret_cast<const char *>(ptr + 4);
-				if (str[strLen] == 0 && strlen(str) == (strLen - 1))
-				{
-					for (int i = 0; i < static_cast<int>(XComProperty::Kind::Max); ++i) {
-						if (property_kind_to_string(static_cast<XComProperty::Kind>(i)) == str) {
-							return true;
+		ptr_ += length;
+		return util::iso8859_1_to_utf8(str);
+	}
+
+	header reader::read_header()
+	{
+		header hdr;
+		hdr.version = read_int();
+		if (hdr.version != save_version) {
+			fprintf(stderr, "Error: Data does not appear to be an xcom save: expected file version %d but got %d\n", save_version, hdr.version);
+			return{ 0 };
+		}
+		hdr.uncompressed_size = read_int();
+		hdr.game_number = read_int();
+		hdr.save_number = read_int();
+		hdr.save_description = read_string();
+		hdr.time = read_string();
+		hdr.map_command = read_string();
+		hdr.tactical_save = read_bool();
+		hdr.ironman = read_bool();
+		hdr.autosave = read_bool();
+		hdr.dlc = read_string();
+		hdr.language = read_string();
+		uint32_t compressed_crc = (uint32_t)read_int();
+
+		// Compute the CRC of the header
+		ptr_ = start_.get() + 1016;
+		int32_t hdr_size = read_int();
+		uint32_t hdr_crc = (uint32_t)read_int();
+		uint32_t computed_hdr_crc = util::crc32b(start_.get(), hdr_size);
+		if (hdr_crc != computed_hdr_crc)
+		{
+			throw std::exception("CRC mismatch in header. Bad save?");
+		}
+
+		uint32_t computed_compressed_crc = util::crc32b(start_.get() + 1024, length_ - 1024);
+		if (computed_compressed_crc != compressed_crc)
+		{
+			throw std::exception("CRC mismatch in compressed data. Bad save?");
+		}
+		return hdr;
+	}
+
+	actor_table reader::read_actor_table()
+	{
+		actor_table actors;
+		int32_t actor_count = read_int();
+
+		// We expect all entries to be of the form <package> <0> <actor> <instance>, or two entries
+		// per real actor.
+		assert(actor_count % 2 == 0);
+
+		for (int i = 0; i < actor_count; i += 2) {
+			std::string actor_name = read_string();
+			int32_t instance = read_int();
+			if (instance == 0) {
+				throw std::exception("Error: malformed actor table entry: expected a non-zero instance\n");
+			}
+			std::string package = read_string();
+			int32_t sentinel = read_int();
+			if (sentinel != 0) {
+				throw std::exception("Error: malformed actor table entry: missing 0 instance\n");
+			}
+			actors.push_back(build_actor_name(package, actor_name, instance));
+		}
+
+		return actors;
+	}
+
+	property_ptr reader::make_struct_property(const std::string &name)
+	{
+		std::string struct_name = read_string();
+		int32_t innerUnknown = read_int();
+		if (innerUnknown != 0) {
+			DBG("Read non-zero prop unknown3 value: %x\n", innerUnknown);
+		}
+		// Special case certain structs
+		if (struct_name.compare("Vector2D") == 0) {
+			std::unique_ptr<unsigned char[]> nativeData = std::make_unique<unsigned char[]>(8);
+			memcpy(nativeData.get(), ptr_, 8);
+			ptr_ += 8;
+			return std::make_unique<struct_property>(name, struct_name, std::move(nativeData), 8);
+		}
+		else if (struct_name.compare("Vector") == 0) {
+			std::unique_ptr<unsigned char[]> nativeData = std::make_unique<unsigned char[]>(12);
+			memcpy(nativeData.get(), ptr_, 12);
+			ptr_ += 12;
+			return std::make_unique<struct_property>(name, struct_name, std::move(nativeData), 12);
+		}
+		else {
+			property_list structProps = read_properties();
+			return std::make_unique<struct_property>(name, struct_name, std::move(structProps));
+		}
+	}
+
+	static bool is_struct_property(const unsigned char *ptr)
+	{
+		// Sniff the first part of the array data to see if it looks like a string.
+		int32_t str_length = *reinterpret_cast<const int*>(ptr);
+		if (str_length > 0 && str_length < 100) {
+			const char *str = reinterpret_cast<const char *>(ptr) + 4;
+			if (str[str_length] == 0 && strlen(str) == (str_length - 1))
+			{
+				// Ok, looks like a name string. Distinguish between a struct
+				// array and a enum array by looking at the next string. if it's a property
+				// kind, then we have a property list and this is a struct. If it's not, then
+				// we must have an enum array.
+
+				// Skip over the string length, string data, and zero int.
+				ptr += 4 + str_length + 4;
+				str_length = *reinterpret_cast<const int*>(ptr);
+				if (str_length > 0 && str_length < 100) {
+					str = reinterpret_cast<const char *>(ptr + 4);
+					if (str[str_length] == 0 && strlen(str) == (str_length - 1))
+					{
+						for (int i = 0; i < static_cast<int>(property::kind_t::last_property); ++i) {
+							if (property_kind_to_string(static_cast<property::kind_t>(i)) == str) {
+								return true;
+							}
 						}
 					}
 				}
 			}
 		}
+
+		return false;
 	}
 
-	return false;
-}
 
-
-XComPropertyPtr XComReader::makeArrayProperty(const std::string &name, int32_t propSize)
-{
-	int32_t arrayBound = readInt();
-	std::unique_ptr<unsigned char[]> arrayData;
-	int array_data_size = propSize - 4;
-	if (array_data_size > 0) {
-		if (arrayBound * 8 == array_data_size) {
-			// Looks like an array of objects
-			std::vector<int32_t> elems;
-			for (int32_t i = 0; i < arrayBound; ++i) {
-				int32_t actor1 = readInt();
-				int32_t actor2 = readInt();
-				if (actor1 == -1 && actor2 == -1) {
-					elems.push_back(actor1);
-				}
-				else if (actor1 != (actor2 + 1)) {
-					throw std::exception("Error: malformed object array: expected related actor numbers\n");
-				}
-				else {
-					elems.push_back(actor1 / 2);
-				}
-			}
-			return std::make_unique<XComObjectArrayProperty>(name, elems);
-		}
-		else if (arrayBound * 4 == array_data_size) {
-			// Looks like an array of ints or floats
-			std::vector<int32_t> elems;
-			for (int i = 0; i < arrayBound; ++i) {
-				elems.push_back(readInt());
-			}
-
-			return std::make_unique<XComNumberArrayProperty>(name, elems);
-		}
-		else if (isStructArray(ptr_)) {
-			std::vector<XComPropertyList> elems;
-			for (int32_t i = 0; i < arrayBound; ++i) {
-				elems.push_back(readProperties());
-			}
-
-			return std::make_unique<XComStructArrayProperty>(name, std::move(elems));
-		}
-		else {
-			// Nope, dunno what this thing is.
-			arrayData = std::make_unique<unsigned char[]>(array_data_size);
-			memcpy(arrayData.get(), ptr_, array_data_size);
-			ptr_ += array_data_size;
-		}
-	}
-	return std::make_unique<XComArrayProperty>(name, std::move(arrayData), array_data_size, arrayBound);
-}
-
-XComPropertyList XComReader::readProperties()
-{
-	XComPropertyList properties;
-	for (;;)
+	property_ptr reader::make_array_property(const std::string &name, int32_t property_size)
 	{
-		std::string name = readString();
-		int32_t unknown1 = readInt();
-		if (unknown1 != 0) {
-			DBG("Read non-zero prop unknown value: %x\n", unknown1);
-		}
-
-		if (name.compare("None") == 0) {
-			break;
-		}
-		std::string propType = readString();
-		int32_t unknown2 = readInt();
-		if (unknown2 != 0) {
-			DBG("Read non-zero prop unknown2 value: %x\n", unknown2);
-		}
-		int32_t propSize = readInt();
-		int32_t arrayIdx = readInt();
-
-		XComPropertyPtr prop;
-		if (propType.compare("ObjectProperty") == 0) {
-			assert(propSize == 8);
-			int32_t objRef1 = readInt();
-			int32_t objRef2 = readInt();
-			if (objRef1 != -1 && objRef1 != (objRef2 + 1)) {
-				throw std::exception("Assertion failed: object references not related.\n");
+		int32_t array_bound = read_int();
+		std::unique_ptr<unsigned char[]> array_data;
+		int array_data_size = property_size - 4;
+		if (array_data_size > 0) {
+			if (array_bound * 8 == array_data_size) {
+				// Looks like an array of objects
+				std::vector<int32_t> elements;
+				for (int32_t i = 0; i < array_bound; ++i) {
+					int32_t actor1 = read_int();
+					int32_t actor2 = read_int();
+					if (actor1 == -1 && actor2 == -1) {
+						elements.push_back(actor1);
+					}
+					else if (actor1 != (actor2 + 1)) {
+						throw std::exception("Error: malformed object array: expected related actor numbers\n");
+					}
+					else {
+						elements.push_back(actor1 / 2);
+					}
+				}
+				return std::make_unique<object_array_property>(name, elements);
 			}
+			else if (array_bound * 4 == array_data_size) {
+				// Looks like an array of ints or floats
+				std::vector<int32_t> elems;
+				for (int i = 0; i < array_bound; ++i) {
+					elems.push_back(read_int());
+				}
 
-			prop = std::make_unique<XComObjectProperty>(name, (objRef1 == -1) ? objRef1 : (objRef1 / 2));
-		}
-		else if (propType.compare("IntProperty") == 0) {
-			assert(propSize == 4);
-			int32_t intVal = readInt();
-			prop = std::make_unique<XComIntProperty>(name, intVal);
-		}
-		else if (propType.compare("ByteProperty") == 0) {
-			std::string enumType = readString();
-			int32_t innerUnknown = readInt();
-			if (innerUnknown != 0) {
-				DBG("Read non-zero prop unknown3 value: %x\n", innerUnknown);
+				return std::make_unique<number_array_property>(name, elems);
 			}
-			std::string enumVal = readString();
-			int32_t extVal = readInt();
-			prop = std::make_unique<XComByteProperty>(name, enumType, enumVal, extVal);
-		}
-		else if (propType.compare("BoolProperty") == 0) {
-			assert(propSize == 0);
-			bool boolVal = *ptr_++ != 0;
-			prop = std::make_unique<XComBoolProperty>(name, boolVal);
-		}
-		else if (propType.compare("ArrayProperty") == 0) {
-			prop = makeArrayProperty(name, propSize);
-		}
-		else if (propType.compare("FloatProperty") == 0) {
-			float f = readFloat();
-			prop = std::make_unique<XComFloatProperty>(name, f);
-		}
-		else if (propType.compare("StructProperty") == 0) {
-			prop = makeStructProperty(name);
-		}
-		else if (propType.compare("StrProperty") == 0) {
-			std::string str = readString();
-			prop = std::make_unique<XComStringProperty>(name, str);
-		}
-		else
-		{
-			DBG("Error: unknown property type %s\n", propType.c_str());
-		}
+			else if (is_struct_property(ptr_)) {
+				std::vector<property_list> elements;
+				for (int32_t i = 0; i < array_bound; ++i) {
+					elements.push_back(read_properties());
+				}
 
-		if (prop.get() != nullptr) {
-			assert(prop->size() == propSize);
-			if (arrayIdx == 0) {
-				properties.push_back(std::move(prop));
+				return std::make_unique<struct_array_property>(name, std::move(elements));
 			}
 			else {
-				if (properties.back()->name.compare(name) != 0) {
-					DBG("Static array index found but doesn't match last property at offset 0x%x\n", ptr_ - start_.get());
+				// Nope, dunno what this thing is.
+				array_data = std::make_unique<unsigned char[]>(array_data_size);
+				memcpy(array_data.get(), ptr_, array_data_size);
+				ptr_ += array_data_size;
+			}
+		}
+		return std::make_unique<array_property>(name, std::move(array_data), array_data_size, array_bound);
+	}
+
+	property_list reader::read_properties()
+	{
+		property_list properties;
+		for (;;)
+		{
+			std::string name = read_string();
+			int32_t unknown1 = read_int();
+			if (unknown1 != 0) {
+				DBG("Read non-zero prop unknown value: %x\n", unknown1);
+			}
+
+			if (name.compare("None") == 0) {
+				break;
+			}
+			std::string prop_type = read_string();
+			int32_t unknown2 = read_int();
+			if (unknown2 != 0) {
+				DBG("Read non-zero prop unknown2 value: %x\n", unknown2);
+			}
+			int32_t prop_size = read_int();
+			int32_t array_index = read_int();
+
+			property_ptr prop;
+			if (prop_type.compare("ObjectProperty") == 0) {
+				assert(prop_size == 8);
+				int32_t actor1 = read_int();
+				int32_t actor2 = read_int();
+				if (actor1 != -1 && actor1 != (actor2 + 1)) {
+					throw std::exception("Assertion failed: object references not related.\n");
 				}
 
-				if (properties.back()->kind == XComProperty::Kind::StaticArrayProperty) {
-					// We already have a static array. Sanity check the array index and add it
-					assert(arrayIdx == static_cast<XComStaticArrayProperty*>(properties.back().get())->length());
-					static_cast<XComStaticArrayProperty*>(properties.back().get())->addProperty(std::move(prop));
+				prop = std::make_unique<object_property>(name, (actor1 == -1) ? actor1 : (actor1 / 2));
+			}
+			else if (prop_type.compare("IntProperty") == 0) {
+				assert(prop_size == 4);
+				int32_t val = read_int();
+				prop = std::make_unique<int_property>(name, val);
+			}
+			else if (prop_type.compare("ByteProperty") == 0) {
+				std::string enum_type = read_string();
+				int32_t inner_unknown = read_int();
+				if (inner_unknown != 0) {
+					DBG("Read non-zero prop unknown3 value: %x\n", inner_unknown);
+				}
+				std::string enum_val = read_string();
+				int32_t extra_val = read_int();
+				prop = std::make_unique<enum_property>(name, enum_type, enum_val, extra_val);
+			}
+			else if (prop_type.compare("BoolProperty") == 0) {
+				assert(prop_size == 0);
+				bool val = *ptr_++ != 0;
+				prop = std::make_unique<bool_property>(name, val);
+			}
+			else if (prop_type.compare("ArrayProperty") == 0) {
+				prop = make_array_property(name, prop_size);
+			}
+			else if (prop_type.compare("FloatProperty") == 0) {
+				float f = read_float();
+				prop = std::make_unique<float_property>(name, f);
+			}
+			else if (prop_type.compare("StructProperty") == 0) {
+				prop = make_struct_property(name);
+			}
+			else if (prop_type.compare("StrProperty") == 0) {
+				std::string str = read_string();
+				prop = std::make_unique<string_property>(name, str);
+			}
+			else
+			{
+				DBG("Error: unknown property type %s\n", prop_type.c_str());
+			}
+
+			if (prop.get() != nullptr) {
+				assert(prop->size() == prop_size);
+				if (array_index == 0) {
+					properties.push_back(std::move(prop));
 				}
 				else {
-					// Not yet a static array. This new property should have index 1.
-					assert(arrayIdx == 1);
+					if (properties.back()->name.compare(name) != 0) {
+						DBG("Static array index found but doesn't match last property at offset 0x%x\n", ptr_ - start_.get());
+					}
 
-					// Pop off the old property
-					XComPropertyPtr lastProp = std::move(properties.back());
-					properties.pop_back();
+					if (properties.back()->kind == property::kind_t::static_array_property) {
+						// We already have a static array. Sanity check the array index and add it
+						static_array_property *static_array = static_cast<static_array_property*>(properties.back().get());
+						assert(array_index == static_array->properties.size());
+						static_array->properties.push_back(std::move(prop));
+					}
+					else {
+						// Not yet a static array. This new property should have index 1.
+						assert(array_index == 1);
 
-					// And replace it with a new static array
-					std::unique_ptr<XComStaticArrayProperty> staticArrayProp = std::make_unique<XComStaticArrayProperty>(name);
-					staticArrayProp->addProperty(std::move(lastProp));
-					staticArrayProp->addProperty(std::move(prop));
-					properties.push_back(std::move(staticArrayProp));
+						// Pop off the old property
+						property_ptr last_property = std::move(properties.back());
+						properties.pop_back();
+
+						// And replace it with a new static array
+						std::unique_ptr<static_array_property> static_array = std::make_unique<static_array_property>(name);
+						static_array->properties.push_back(std::move(last_property));
+						static_array->properties.push_back(std::move(prop));
+						properties.push_back(std::move(static_array));
+					}
 				}
 			}
 		}
+
+		return properties;
 	}
 
-	return properties;
-}
+	checkpoint_table reader::read_checkpoint_table()
+	{
+		checkpoint_table checkpoints;
+		int32_t checkpoint_count = read_int();
 
-XComCheckpointTable XComReader::readCheckpointTable()
-{
-	XComCheckpointTable checkpointTable;
-	int32_t checkpointCount = readInt();
+		for (int i = 0; i < checkpoint_count; ++i) {
+			checkpoint chk;
+			chk.name = read_string();
+			chk.instance_name = read_string();
+			chk.vector[0] = read_float();
+			chk.vector[1] = read_float();
+			chk.vector[2] = read_float();
+			chk.rotator[0] = read_int();
+			chk.rotator[1] = read_int();
+			chk.rotator[2] = read_int();
+			chk.class_name = read_string();
+			int32_t prop_length = read_int();
+			if (prop_length < 0) {
+				throw std::exception("Error: Found negative property length\n");
+			}
+			chk.pad_size = 0;
+			const unsigned char* start_ptr = ptr_;
 
-	for (int i = 0; i < checkpointCount; ++i) {
-		XComCheckpoint chk;
-		chk.name = readString();
-		chk.instanceName = readString();
-		chk.vector[0] = readFloat();
-		chk.vector[1] = readFloat();
-		chk.vector[2] = readFloat();
-		chk.rotator[0] = readInt();
-		chk.rotator[1] = readInt();
-		chk.rotator[2] = readInt();
-		chk.className = readString();
-		int32_t propLen = readInt();
-		if (propLen < 0) {
-			throw std::exception("Error: Found negative property length\n");
-		}
-		chk.padSize = 0;
-		const unsigned char* startPtr = ptr_;
+			chk.properties = read_properties();
+			if ((ptr_ - start_ptr) < prop_length) {
+				chk.pad_size = prop_length - (ptr_ - start_ptr);
 
-		chk.properties = readProperties();
-		if ((ptr_ - startPtr) < propLen) {
-			chk.padSize = propLen - (ptr_ - startPtr);
-
-			for (unsigned int i = 0; i < chk.padSize; ++i) {
-				if (*ptr_++ != 0) {
-					DBG("Found non-zero padding byte at offset %x", (offset() - 1));
+				for (unsigned int i = 0; i < chk.pad_size; ++i) {
+					if (*ptr_++ != 0) {
+						DBG("Found non-zero padding byte at offset %x", (offset() - 1));
+					}
 				}
 			}
+			size_t total_prop_size = 0;
+			std::for_each(chk.properties.begin(), chk.properties.end(), [&total_prop_size](const property_ptr& prop) {
+				total_prop_size += prop->full_size();
+			});
+			total_prop_size += 9 + 4; // length of trailing "None" to terminate the list + the unknown int.
+			assert((uint32_t)prop_length == (total_prop_size + chk.pad_size));
+			chk.template_index = read_int();
+			checkpoints.push_back(std::move(chk));
 		}
-		size_t totalPropSize = 0;
-		std::for_each(chk.properties.begin(), chk.properties.end(), [&totalPropSize](const XComPropertyPtr& prop) {
-			totalPropSize += prop->full_size();
-		});
-		totalPropSize += 9 + 4; // length of trailing "None" to terminate the list + the unknown int.
-		assert((uint32_t)propLen == (totalPropSize + chk.padSize));
-		chk.templateIndex = readInt();
-		checkpointTable.push_back(std::move(chk));
+
+		return checkpoints;
 	}
 
-	return checkpointTable;
-}
-
-XComActorTemplateTable XComReader::readActorTemplateTable()
-{
-	XComActorTemplateTable templateTable;
-	int32_t templateCount = readInt();
-
-	for (int i = 0; i < templateCount; ++i) {
-		XComActorTemplate tmpl;
-		tmpl.actorClassPath = readString();
-		memcpy(tmpl.loadParams, ptr_, 64);
-		ptr_ += 64;
-		tmpl.archetypePath = readString();
-		templateTable.push_back(std::move(tmpl));
-	}
-
-	return templateTable;
-}
-
-XComNameTable XComReader::readNameTable()
-{
-	static unsigned char allZeros[8] = { 0 };
-	XComNameTable nameTable;
-	int32_t nameCount = readInt();
-
-	for (int i = 0; i < nameCount; ++i) {
-		XComNameEntry entry;
-		entry.name = readString();
-		memcpy(entry.zeros, ptr_, 8);
-		ptr_ += 8;
-		if (memcmp(entry.zeros, allZeros, 8) != 0) {
-			fprintf(stderr, "Error: Expected all zeros in name table entry");
-			return{};
-		}
-		entry.dataLen = readInt();
-		entry.data = new unsigned char[entry.dataLen];
-		memcpy(entry.data, ptr_, entry.dataLen);
-		ptr_ += entry.dataLen;
-		nameTable.push_back(std::move(entry));
-	}
-
-	return nameTable;
-}
-
-int32_t XComReader::getuncompressed_size()
-{
-	// The compressed data begins 1024 bytes into the file.
-	const unsigned char* p = start_.get() + 1024;
-	uint32_t compressedSize;
-	uint32_t uncompressed_size = 0;
-	do
+	actor_template_table reader::read_actor_template_table()
 	{
-		// Expect the magic header value 0x9e2a83c1 at the start of each chunk
-		if (*(reinterpret_cast<const int32_t*>(p)) != UPK_Magic) {
-			fprintf(stderr, "Failed to find compressed chunk at offset 0x%08x", offset());
-			return -1;
+		actor_template_table template_table;
+		int32_t templateCount = read_int();
+
+		for (int i = 0; i < templateCount; ++i) {
+			actor_template tmpl;
+			tmpl.actor_class_path = read_string();
+			memcpy(tmpl.load_params, ptr_, 64);
+			ptr_ += 64;
+			tmpl.archetype_path = read_string();
+			template_table.push_back(std::move(tmpl));
 		}
 
-		// Compressed size is at p+8
-		compressedSize = *(reinterpret_cast<const unsigned long*>(p + 8));
+		return template_table;
+	}
 
-		// Uncompressed size is at p+12
-		uncompressed_size += *(reinterpret_cast<const unsigned long*>(p + 12));
-
-		// Skip to next chunk - 24 bytes of this chunk header + compressedSize bytes later.
-		p += (compressedSize + 24);
-	} while (static_cast<size_t>(p - start_.get()) < length_);
-
-	return uncompressed_size;
-}
-
-void XComReader::getUncompressedData(unsigned char *buf)
-{
-	// Start back at the beginning of the compressed data.
-	const unsigned char *p = start_.get() + 1024;
-	unsigned char *outp = buf;
-	do
+	name_table reader::read_name_table()
 	{
-		// Expect the magic header value 0x9e2a83c1 at the start of each chunk
-		if (*(reinterpret_cast<const uint32_t*>(p)) != UPK_Magic) {
-			fprintf(stderr, "Failed to find compressed chunk at offset 0x%08x", (p - start_.get()));
-			return;
+		static unsigned char all_zeros[8] = { 0 };
+		name_table names;
+		int32_t name_count = read_int();
+
+		for (int i = 0; i < name_count; ++i) {
+			name_entry entry;
+			entry.name = read_string();
+			memcpy(entry.zeros, ptr_, 8);
+			ptr_ += 8;
+			if (memcmp(entry.zeros, all_zeros, 8) != 0) {
+				fprintf(stderr, "Error: Expected all zeros in name table entry");
+				return{};
+			}
+			entry.data_length = read_int();
+			entry.data = new unsigned char[entry.data_length];
+			memcpy(entry.data, ptr_, entry.data_length);
+			ptr_ += entry.data_length;
+			names.push_back(std::move(entry));
 		}
 
-		// Compressed size is at p+8
-		int32_t compressedSize = *(reinterpret_cast<const int32_t *>(p + 8));
+		return names;
+	}
 
-		// Uncompressed size is at p+12
-		int32_t uncompressed_size = *(reinterpret_cast<const int32_t*>(p + 12));
-		
-		unsigned long decompSize = uncompressed_size;
-
-		if (lzo1x_decompress_safe(p + 24, compressedSize, outp, &decompSize, nullptr) != LZO_E_OK) {
-			fprintf(stderr, "LZO decompress of save data failed\n");
-			return;
-		}
-
-		unsigned char * wrkbuf = new unsigned char[LZO1X_1_MEM_COMPRESS];
-		
-		unsigned long tmpSize = decompSize + decompSize / 16  + 64 + 3;
-		unsigned char * tmpBuf = new unsigned char[tmpSize];
-
-		if (decompSize != uncompressed_size)
+	int32_t reader::uncompressed_size()
+	{
+		// The compressed data begins 1024 bytes into the file.
+		const unsigned char* p = start_.get() + 1024;
+		uint32_t compressed_size;
+		uint32_t uncompressed_size = 0;
+		do
 		{
-			fprintf(stderr, "Failed to decompress chunk!");
-			return;
+			// Expect the magic header value 0x9e2a83c1 at the start of each chunk
+			if (*(reinterpret_cast<const int32_t*>(p)) != UPK_Magic) {
+				fprintf(stderr, "Failed to find compressed chunk at offset 0x%08x", offset());
+				return -1;
+			}
+
+			// Compressed size is at p+8
+			compressed_size = *(reinterpret_cast<const unsigned long*>(p + 8));
+
+			// Uncompressed size is at p+12
+			uncompressed_size += *(reinterpret_cast<const unsigned long*>(p + 12));
+
+			// Skip to next chunk - 24 bytes of this chunk header + compressedSize bytes later.
+			p += (compressed_size + 24);
+		} while (static_cast<size_t>(p - start_.get()) < length_);
+
+		return uncompressed_size;
+	}
+
+	void reader::uncompressed_data(unsigned char *buf)
+	{
+		// Start back at the beginning of the compressed data.
+		const unsigned char *p = start_.get() + 1024;
+		unsigned char *outp = buf;
+
+		do
+		{
+			// Expect the magic header value 0x9e2a83c1 at the start of each chunk
+			if (*(reinterpret_cast<const uint32_t*>(p)) != UPK_Magic) {
+				fprintf(stderr, "Failed to find compressed chunk at offset 0x%08x", (p - start_.get()));
+				return;
+			}
+
+			// Compressed size is at p+8
+			int32_t compressed_size = *(reinterpret_cast<const int32_t *>(p + 8));
+
+			// Uncompressed size is at p+12
+			int32_t uncompressed_size = *(reinterpret_cast<const int32_t*>(p + 12));
+
+			unsigned long decomp_size = uncompressed_size;
+
+			if (lzo1x_decompress_safe(p + 24, compressed_size, outp, &decomp_size, nullptr) != LZO_E_OK) {
+				fprintf(stderr, "LZO decompress of save data failed\n");
+				return;
+			}
+
+			unsigned long tmpSize = decomp_size + decomp_size / 16 + 64 + 3;
+			unsigned char * tmpBuf = new unsigned char[tmpSize];
+
+			if (decomp_size != uncompressed_size)
+			{
+				fprintf(stderr, "Failed to decompress chunk!");
+				return;
+			}
+
+			// Skip to next chunk - 24 bytes of this chunk header + compressedSize bytes later.
+			p += (compressed_size + 24);
+			outp += uncompressed_size;
+		} while (static_cast<size_t>(p - start_.get()) < length_);
+	}
+
+	saved_game reader::save_data()
+	{
+		saved_game save;
+		const unsigned char *p = ptr_ + 1024;
+		FILE *out_file = fopen("output.dat", "wb");
+		if (out_file == nullptr) {
+			fprintf(stderr, "Failed to open output file: %d", errno);
 		}
+		int chunk_count = 0;
+		int total_compressed = 0;
+		int total_uncompressed = 0;
+		save.header = read_header();
 
-		// Skip to next chunk - 24 bytes of this chunk header + compressedSize bytes later.
-		p += (compressedSize + 24);
-		outp += uncompressed_size;
-	} while (static_cast<size_t>(p - start_.get()) < length_);
-}
-
-XComSave XComReader::getSaveData()
-{
-	XComSave save;
-	const unsigned char *p = ptr_ + 1024;
-	FILE *outFile = fopen("output.dat", "wb");
-	if (outFile == nullptr) {
-		fprintf(stderr, "Failed to open output file: %d", errno);
-	}
-	int chunkCount = 0;
-	int totalCompressed = 0;
-	int totalUncompressed = 0;
-	save.header = readHeader();
-
-	int32_t uncompressed_size = getuncompressed_size();
-	if (uncompressed_size < 0) {
-		return {};
-	}
-	
-	unsigned char *uncompressedData = new unsigned char[uncompressed_size];
-	getUncompressedData(uncompressedData);
-
-	// We're now done with the compressed file. Swap over to the uncompressed data
-	ptr_ = uncompressedData;
-	start_.reset(ptr_);
-	length_ = uncompressed_size;
-	fwrite(uncompressedData, 1, uncompressed_size, outFile);
-	fclose(outFile);
-	save.actorTable = readActorTable();
-	DBG("Finished reading actor table (%x) at offset %x\n", save.actorTable.size(), offset());
-	// Jump back to here after each chunk
-	do {
-		XComCheckpointChunk chunk;
-		chunk.unknownInt1 = readInt();
-		chunk.gameType = readString();
-		std::string none = readString();
-		if (none != "None") {
-			fprintf(stderr, "Error locating 'None' after actor table.\n");
+		int32_t uncompressed = uncompressed_size();
+		if (uncompressed < 0) {
 			return{};
 		}
-		
-		chunk.unknownInt2 = readInt();
-		chunk.checkpointTable = readCheckpointTable();
-		DBG("Finished reading checkpoint table at offset %x\n", offset());
 
-		int32_t nameTableLen = readInt();
-		assert(nameTableLen == 0);
+		unsigned char *data = new unsigned char[uncompressed];
+		uncompressed_data(data);
 
-#if 0
-		if (unknownInt3 > 0) { // only seems to be present for tactical saves?
-			XComNameTable nameTable = readNameTable();
-			DBG("Finished reading name table at offset %x\n", ptr_ - start_);
-		}
-#endif
+		// We're now done with the compressed file. Swap over to the uncompressed data
+		ptr_ = data;
+		start_.reset(ptr_);
+		length_ = uncompressed;
+		fwrite(data, 1, uncompressed, out_file);
+		fclose(out_file);
+		save.actors = read_actor_table();
+		DBG("Finished reading actor table (%x) at offset %x\n", save.actors.size(), offset());
+		// Jump back to here after each chunk
+		do {
+			checkpoint_chunk chunk;
+			chunk.unknown_int1 = read_int();
+			chunk.game_type = read_string();
+			std::string none = read_string();
+			if (none != "None") {
+				fprintf(stderr, "Error locating 'None' after actor table.\n");
+				return{};
+			}
 
-		chunk.className = readString();
-		chunk.actorTable = readActorTable();
-		DBG("Finished reading second actor table (%x) at offset %x\n", chunk.actorTable.size(), offset());
+			chunk.unknown_int2 = read_int();
+			chunk.checkpoints = read_checkpoint_table();
+			DBG("Finished reading checkpoint table at offset %x\n", offset());
 
-		chunk.unknownInt3 = readInt();
+			int32_t name_table_length = read_int();
+			assert(name_table_length == 0);
 
-		XComActorTemplateTable actorTemplateTable = readActorTemplateTable(); // (only seems to be present for tactical saves?)
-		assert(actorTemplateTable.size() == 0);
-		DBG("Finished reading actor template table at offset %x\n", offset());
+			chunk.class_name = read_string();
+			chunk.actors = read_actor_table();
+			DBG("Finished reading second actor table (%x) at offset %x\n", chunk.actors.size(), offset());
 
-		chunk.displayName = readString(); //unknown (game name)
-		chunk.mapName = readString(); //unknown (map name)
-		chunk.unknownInt4 = readInt(); //unknown  (checksum?)
+			chunk.unknown_int3 = read_int();
 
-		save.checkpoints.push_back(std::move(chunk));
+			actor_template_table actor_templates = read_actor_template_table(); // (only seems to be present for tactical saves?)
+			assert(actor_templates.size() == 0);
+			DBG("Finished reading actor template table at offset %x\n", offset());
+
+			chunk.display_name = read_string(); //unknown (game name)
+			chunk.map_name = read_string(); //unknown (map name)
+			chunk.unknown_int4 = read_int(); //unknown  (checksum?)
+
+			save.checkpoints.push_back(std::move(chunk));
+		} while ((static_cast<size_t>(offset()) < length_));
+		return save;
 	}
-	while ((static_cast<size_t>(offset()) < length_));
-	return save;
-}
+
+} //namespace xcom

@@ -9,6 +9,8 @@
 #include <sstream>
 #include <algorithm>
 
+using namespace xcom;
+
 static std::string escape(const std::string& str) {
 	std::string ret;
 
@@ -32,7 +34,7 @@ static std::string escape(const std::string& str) {
 			break;
 		default:
 			if (str[i] > 0 && str[i] < ' ') {
-				std::string hex = toHex(reinterpret_cast<const unsigned char *>(&str[i]), 1);
+				std::string hex = util::to_hex(reinterpret_cast<const unsigned char *>(&str[i]), 1);
 				ret += "\\u00";
 				ret += hex;
 			}
@@ -45,9 +47,9 @@ static std::string escape(const std::string& str) {
 	return ret;
 }
 
-struct JsonWriter
+struct json_writer
 {
-	JsonWriter(const std::string& filename)
+	json_writer(const std::string& filename)
 	{
 		out = std::ofstream{ filename };
 		out.setf(std::ofstream::boolalpha);
@@ -69,55 +71,53 @@ struct JsonWriter
 		}
 	}
 
-	void beginObject(bool omitNewline = false)
+	void begin_object(bool omit_newline = false)
 	{
 		indent();
 		out << "{ ";
 		++indent_level;
 		needs_comma = false;
-		skip_indent = omitNewline;
+		skip_indent = omit_newline;
 	}
 
-	void endObject()
+	void end_object()
 	{
 		--indent_level;
 		if (needs_comma) {
 			out << " ";
 		}
 		needs_comma = false;
-		//skip_indent = false;
 		indent();
 		out << "}";
 		needs_comma = true;
 		skip_indent = false;
 	}
 
-	void beginArray(bool omitNewline = false)
+	void begin_array(bool omit_newline = false)
 	{
 		indent();
 		out << "[ ";
 		++indent_level;
 		needs_comma = false;
-		skip_indent = omitNewline;
+		skip_indent = omit_newline;
 	}
 
-	void endArray()
+	void end_array()
 	{
 		--indent_level;
 		if (needs_comma) {
 			out << " ";
 		}
 		needs_comma = false;
-		//skip_indent = false;
 		indent();
 		out << "]";
 		needs_comma = true;
 		skip_indent = false;
 	}
 
-	void enditem(bool omitNewline)
+	void end_item(bool omit_newline)
 	{
-		if (!omitNewline) {
+		if (!omit_newline) {
 			skip_indent = false;
 		}
 		else {
@@ -127,7 +127,7 @@ struct JsonWriter
 		needs_comma = true;
 	}
 
-	void writeKey(const std::string &name)
+	void write_key(const std::string &name)
 	{
 		indent();
 		out << "\"" << name << "\": ";
@@ -135,53 +135,53 @@ struct JsonWriter
 		needs_comma = false;
 	}
 
-	void writeInt(const std::string &name, int32_t val, bool omitNewline = false)
+	void write_int(const std::string &name, int32_t val, bool omit_newline = false)
 	{
-		writeKey(name);
+		write_key(name);
 		out << val;
-		enditem(omitNewline);
+		end_item(omit_newline);
 	}
 
-	void writeBareInt(int val, bool omitNewLine = false)
+	void write_raw_int(int val, bool omit_newline = false)
 	{
 		indent();
 		out << val;
-		enditem(omitNewLine);
+		end_item(omit_newline);
 	}
 
-	void writeFloat(const std::string &name, float val, bool omitNewline = false)
+	void write_float(const std::string &name, float val, bool omit_newline = false)
 	{
-		writeKey(name);
+		write_key(name);
 		out << val;
-		enditem(omitNewline);
+		end_item(omit_newline);
 	}
 
-	void writeBareFloat(float val, bool omitNewLine = false)
+	void write_raw_float(float val, bool omit_newline = false)
 	{
 		indent();
 		out << val;
-		enditem(omitNewLine);
+		end_item(omit_newline);
 	}
 
-	void writeString(const std::string &name, const std::string &val, bool omitNewline = false)
+	void write_string(const std::string &name, const std::string &val, bool omit_newline = false)
 	{
-		writeKey(name);
+		write_key(name);
 		out << "\"" << escape(val) << "\"";
-		enditem(omitNewline);
+		end_item(omit_newline);
 	}
 
-	void writeBareString(const std::string& val, bool omitNewLine = false)
+	void write_raw_string(const std::string& val, bool omit_newline = false)
 	{
 		indent();
 		out << "\"" << escape(val) << "\"";
-		enditem(omitNewLine);
+		end_item(omit_newline);
 	}
 
-	void writeBool(const std::string &name, bool val, bool omitNewline = false)
+	void write_bool(const std::string &name, bool val, bool omit_newline = false)
 	{
-		writeKey(name);
+		write_key(name);
 		out << val;
-		enditem(omitNewline);
+		end_item(omit_newline);
 	}
 
 
@@ -194,270 +194,269 @@ private:
 
 
 
-struct JsonPropertyVisitor : public XComPropertyVisitor
+struct json_property_visitor : public property_visitor
 {
-	JsonPropertyVisitor(JsonWriter &writer, const XComActorTable &ga, const XComActorTable &la) : w(writer), globalActorTable(ga), localActorTable(la) {}
+	json_property_visitor(json_writer &writer, const actor_table &ga, const actor_table &la) : w(writer), global_actors(ga), local_actors(la) {}
 
-	void writeCommon(XComProperty* prop, bool omitNewlines = false)
+	void write_common(property* prop, bool omit_newline = false)
 	{
-		w.writeString("name", prop->name, omitNewlines);
-		w.writeString("kind", prop->kind_string(), omitNewlines);
+		w.write_string("name", prop->name, omit_newline);
+		w.write_string("kind", prop->kind_string(), omit_newline);
 	}
 
-	virtual void visitInt(XComIntProperty *prop) override
+	virtual void visit_int(int_property *prop) override
 	{
-		w.beginObject(true);
-		writeCommon(prop, true);
-		w.writeInt("value", prop->value, true);
-		w.endObject();
+		w.begin_object(true);
+		write_common(prop, true);
+		w.write_int("value", prop->value, true);
+		w.end_object();
 	}
 
-	virtual void visitFloat(XComFloatProperty *prop) override
+	virtual void visit_float(float_property *prop) override
 	{
-		w.beginObject(true);
-		writeCommon(prop, true);
-		w.writeFloat("value", prop->value, true);
-		w.endObject();
+		w.begin_object(true);
+		write_common(prop, true);
+		w.write_float("value", prop->value, true);
+		w.end_object();
 	}
 
-	virtual void visitBool(XComBoolProperty *prop) override
+	virtual void visit_bool(bool_property *prop) override
 	{
-		w.beginObject(true);
-		writeCommon(prop, true);
-		w.writeBool("value", prop->value, true);
-		w.endObject();
+		w.begin_object(true);
+		write_common(prop, true);
+		w.write_bool("value", prop->value, true);
+		w.end_object();
 	}
 
-	virtual void visitString(XComStringProperty *prop) override
+	virtual void visit_string(string_property *prop) override
 	{
-		w.beginObject(true);
-		writeCommon(prop, true);
-		w.writeString("value", prop->str, true);
-		w.endObject();
+		w.begin_object(true);
+		write_common(prop, true);
+		w.write_string("value", prop->str, true);
+		w.end_object();
 	}
 
-	virtual void visitObject(XComObjectProperty *prop) override
+	virtual void visit_object(object_property *prop) override
 	{
-		w.beginObject(true);
-		writeCommon(prop, true);
-		w.writeInt("actor", prop->actor, true);
-		w.endObject();
+		w.begin_object(true);
+		write_common(prop, true);
+		w.write_int("actor", prop->actor, true);
+		w.end_object();
 	}
 
-	virtual void visitByte(XComByteProperty *prop) override
+	virtual void visit_enum(enum_property *prop) override
 	{
-		w.beginObject();
-		writeCommon(prop);
-		w.writeString("type", prop->enumType);
-		w.writeString("value", prop->enumVal);
-		w.writeInt("extra_value", prop->extVal);
-		w.endObject();
+		w.begin_object();
+		write_common(prop);
+		w.write_string("type", prop->enum_type);
+		w.write_string("value", prop->enum_value);
+		w.write_int("extra_value", prop->extra_value);
+		w.end_object();
 	}
 
-	virtual void visitStruct(XComStructProperty *prop) override
+	virtual void visit_struct(struct_property *prop) override
 	{
-		w.beginObject();
-		writeCommon(prop);
-		w.writeString("struct_name", prop->structName);
+		w.begin_object();
+		write_common(prop);
+		w.write_string("struct_name", prop->struct_name);
 
-		if (prop->nativeDataLen > 0) {
-			int32_t strLen = prop->nativeDataLen * 2 + 1;
-			w.writeString("native_data", toHex(prop->nativeData.get(), prop->nativeDataLen));
-			w.writeKey("properties");
-			w.beginArray(true);
-			w.endArray();
+		if (prop->native_data_length > 0) {
+			w.write_string("native_data", util::to_hex(prop->native_data.get(), prop->native_data_length));
+			w.write_key("properties");
+			w.begin_array(true);
+			w.end_array();
 		}
 		else {
-			w.writeString("native_data", "");
-			w.writeKey("properties");
-			w.beginArray();
-			std::for_each(prop->structProps.begin(), prop->structProps.end(),
-				[this](const XComPropertyPtr& v) {
-				JsonPropertyVisitor visitor{ w, globalActorTable, localActorTable };
+			w.write_string("native_data", "");
+			w.write_key("properties");
+			w.begin_array();
+			std::for_each(prop->properties.begin(), prop->properties.end(),
+				[this](const property_ptr& v) {
+				json_property_visitor visitor(*this);
 				v->accept(&visitor);
 			});
-			w.endArray();
+			w.end_array();
 		}
-		w.endObject();
+		w.end_object();
 	}
 
-	virtual void visitArray(XComArrayProperty *prop) override
+	virtual void visit_array(array_property *prop) override
 	{
-		w.beginObject();
-		writeCommon(prop);
-		w.writeInt("data_length", prop->data_length);
-		w.writeInt("array_bound", prop->array_bound);
-		std::string dataStr = (prop->array_bound > 0) ? toHex(prop->data.get(), prop->data_length) : "";
-		w.writeString("data", dataStr);
-		w.endObject();
+		w.begin_object();
+		write_common(prop);
+		w.write_int("data_length", prop->data_length);
+		w.write_int("array_bound", prop->array_bound);
+		std::string data_str = (prop->array_bound > 0) ? util::to_hex(prop->data.get(), prop->data_length) : "";
+		w.write_string("data", data_str);
+		w.end_object();
 	}
 
-	virtual void visitObjectArray(XComObjectArrayProperty *prop) override
+	virtual void visit_object_array(object_array_property *prop) override
 	{
-		w.beginObject();
-		writeCommon(prop);
-		w.writeKey("actors");
-		w.beginArray(true);
+		w.begin_object();
+		write_common(prop);
+		w.write_key("actors");
+		w.begin_array(true);
 		for (unsigned int i = 0; i < prop->elements.size(); ++i) {
-			w.writeBareInt(prop->elements[i], true);
+			w.write_raw_int(prop->elements[i], true);
 		}
-		w.endArray();
-		w.endObject();
+		w.end_array();
+		w.end_object();
 	}
 
-	virtual void visitNumberArray(XComNumberArrayProperty *prop) override
+	virtual void visit_number_array(number_array_property *prop) override
 	{
-		w.beginObject();
-		writeCommon(prop);
-		w.writeKey("elements");
-		w.beginArray(true);
+		w.begin_object();
+		write_common(prop);
+		w.write_key("elements");
+		w.begin_array(true);
 		for (unsigned int i = 0; i < prop->elements.size(); ++i) {
-			w.writeBareInt(prop->elements[i], true);
+			w.write_raw_int(prop->elements[i], true);
 		}
-		w.endArray();
-		w.endObject();
+		w.end_array();
+		w.end_object();
 	}
 
-	virtual void visitStructArray(XComStructArrayProperty *prop) override
+	virtual void visit_struct_array(struct_array_property *prop) override
 	{
-		w.beginObject();
-		writeCommon(prop);
-		w.writeKey("structs");
-		w.beginArray();
-		std::for_each(prop->elements.begin(), prop->elements.end(), [this](const XComPropertyList& pl) {
-			w.beginArray();
-			std::for_each(pl.begin(), pl.end(), [this](const XComPropertyPtr& p) {
+		w.begin_object();
+		write_common(prop);
+		w.write_key("structs");
+		w.begin_array();
+		std::for_each(prop->elements.begin(), prop->elements.end(), [this](const property_list& proplist) {
+			w.begin_array();
+			std::for_each(proplist.begin(), proplist.end(), [this](const property_ptr& p) {
 				p->accept(this);
 			});
-			w.endArray();
+			w.end_array();
 		});
 
-		w.endArray();
-		w.endObject();
+		w.end_array();
+		w.end_object();
 	}
 
-	virtual void visitStaticArray(XComStaticArrayProperty *prop) override
+	virtual void visit_static_array(static_array_property *prop) override
 	{
-		w.beginObject();
-		writeCommon(prop);
-		w.writeKey("properties");
-		w.beginArray();
+		w.begin_object();
+		write_common(prop);
+		w.write_key("properties");
+		w.begin_array();
 
 		std::for_each(prop->properties.begin(), prop->properties.end(),
-			[this](const XComPropertyPtr& v) { 
-				JsonPropertyVisitor visitor{ w, globalActorTable, localActorTable };
+			[this](const property_ptr& v) { 
+				json_property_visitor visitor(*this);
 				v->accept(&visitor);
 		});
 
-		w.endArray();
-		w.endObject();
+		w.end_array();
+		w.end_object();
 	}
 
-	JsonWriter& w;
-	const XComActorTable &globalActorTable;
-	const XComActorTable &localActorTable;
+	json_writer& w;
+	const actor_table &global_actors;
+	const actor_table &local_actors;
 };
 
-static void XComCheckpointToJson(const XComCheckpoint& chk, JsonWriter& w, const XComActorTable& globalActorTable, const XComActorTable& localActorTable)
+static void checkpoint_to_json(const checkpoint & chk, json_writer& w, const actor_table& global_actors, const actor_table& local_actors)
 {
-	w.beginObject();
-	w.writeString("name", chk.name);
-	w.writeString("instance_name", chk.instanceName);
-	w.writeString("class_name", chk.className);
-	w.writeKey("vector");
-	w.beginArray(true);
+	w.begin_object();
+	w.write_string("name", chk.name);
+	w.write_string("instance_name", chk.instance_name);
+	w.write_string("class_name", chk.class_name);
+	w.write_key("vector");
+	w.begin_array(true);
 	for (const auto& i : chk.vector) {
-		w.writeBareFloat(i, true);
+		w.write_raw_float(i, true);
 	}
-	w.endArray();
-	w.writeKey("rotator");
-	w.beginArray(true);
+	w.end_array();
+	w.write_key("rotator");
+	w.begin_array(true);
 	for (const auto& i : chk.rotator) {
-		w.writeBareInt(i, true);
+		w.write_raw_int(i, true);
 	}
-	w.endArray();
+	w.end_array();
 
-	w.writeKey("properties");
-	w.beginArray();
+	w.write_key("properties");
+	w.begin_array();
 	std::for_each(chk.properties.begin(), chk.properties.end(),
-		[&w, &globalActorTable, &localActorTable](const XComPropertyPtr& v) { 
-			JsonPropertyVisitor visitor{ w, globalActorTable, localActorTable };
+		[&w, &global_actors, &local_actors](const property_ptr& v) { 
+			json_property_visitor visitor{ w, global_actors, local_actors };
 			v->accept(&visitor);
 	});
-	w.endArray();
+	w.end_array();
 
-	w.writeInt("template_index", chk.templateIndex);
-	w.writeInt("pad_size", chk.padSize);
-	w.endObject();
+	w.write_int("template_index", chk.template_index);
+	w.write_int("pad_size", chk.pad_size);
+	w.end_object();
 }
 
-static void XComCheckpointChunkToJson(const XComCheckpointChunk& chk, JsonWriter &w, const XComSave& save)
+static void checkpoint_chunk_to_json(const checkpoint_chunk& chk, json_writer &w, const saved_game& save)
 {
-	w.beginObject();
-	w.writeInt("unknown_int1", chk.unknownInt1);
-	w.writeString("game_type", chk.gameType);
-	w.writeKey("checkpoint_table");
-	w.beginArray();
-	std::for_each(chk.checkpointTable.begin(), chk.checkpointTable.end(),
-		[&w, &save, &chk](const XComCheckpoint& v) { XComCheckpointToJson(v, w, save.actorTable, chk.actorTable); }
+	w.begin_object();
+	w.write_int("unknown_int1", chk.unknown_int1);
+	w.write_string("game_type", chk.game_type);
+	w.write_key("checkpoint_table");
+	w.begin_array();
+	std::for_each(chk.checkpoints.begin(), chk.checkpoints.end(),
+		[&w, &save, &chk](const checkpoint& v) { checkpoint_to_json(v, w, save.actors, chk.actors); }
 	);
-	w.endArray();
+	w.end_array();
 
-	w.writeInt("unknown_int2", chk.unknownInt2);
-	w.writeString("class_name", chk.className);
+	w.write_int("unknown_int2", chk.unknown_int2);
+	w.write_string("class_name", chk.class_name);
 
-	w.writeKey("actor_table");
-	w.beginArray();
+	w.write_key("actor_table");
+	w.begin_array();
 	
-	std::for_each(chk.actorTable.begin(), chk.actorTable.end(),
-		[&w](const std::string& a) { w.writeBareString(a); }
+	std::for_each(chk.actors.begin(), chk.actors.end(),
+		[&w](const std::string& a) { w.write_raw_string(a); }
 	);
-	w.endArray();
+	w.end_array();
 
-	w.writeInt("unknown_int3", chk.unknownInt3);
-	w.writeString("display_name", chk.displayName);
-	w.writeString("map_name", chk.mapName);
-	w.writeInt("unknown_int4", chk.unknownInt4);
-	w.endObject();
+	w.write_int("unknown_int3", chk.unknown_int3);
+	w.write_string("display_name", chk.display_name);
+	w.write_string("map_name", chk.map_name);
+	w.write_int("unknown_int4", chk.unknown_int4);
+	w.end_object();
 }
 
-void buildJson(const XComSave& save, JsonWriter& w)
+void buildJson(const saved_game& save, json_writer& w)
 {
-	w.beginObject();
+	w.begin_object();
 
 	// Write the header
-	const XComSaveHeader &hdr = save.header;
+	const header &hdr = save.header;
 
-	w.writeKey("header");
-	w.beginObject();
-	w.writeInt("version", hdr.version);
-	w.writeInt("uncompressed_size", hdr.uncompressed_size);
-	w.writeInt("game_number", hdr.game_number);
-	w.writeInt("save_number", hdr.save_number);
-	w.writeString("save_description", hdr.save_description);
-	w.writeString("time", hdr.time);
-	w.writeString("map_command", hdr.map_command);
-	w.writeBool("tactical_save", hdr.tactical_save);
-	w.writeBool("ironman", hdr.ironman);
-	w.writeBool("autosave", hdr.autosave);
-	w.writeString("dlc", hdr.dlc);
-	w.writeString("language", hdr.language);
-	w.endObject();
+	w.write_key("header");
+	w.begin_object();
+	w.write_int("version", hdr.version);
+	w.write_int("uncompressed_size", hdr.uncompressed_size);
+	w.write_int("game_number", hdr.game_number);
+	w.write_int("save_number", hdr.save_number);
+	w.write_string("save_description", hdr.save_description);
+	w.write_string("time", hdr.time);
+	w.write_string("map_command", hdr.map_command);
+	w.write_bool("tactical_save", hdr.tactical_save);
+	w.write_bool("ironman", hdr.ironman);
+	w.write_bool("autosave", hdr.autosave);
+	w.write_string("dlc", hdr.dlc);
+	w.write_string("language", hdr.language);
+	w.end_object();
 
-	w.writeKey("actor_table");
-	w.beginArray();
-	std::for_each(save.actorTable.begin(), save.actorTable.end(),
-		[&w](const std::string& a) { w.writeBareString(a); }
+	w.write_key("actor_table");
+	w.begin_array();
+	std::for_each(save.actors.begin(), save.actors.end(),
+		[&w](const std::string& a) { w.write_raw_string(a); }
 	);
-	w.endArray();
+	w.end_array();
 
-	w.writeKey("checkpoints");
-	w.beginArray();
+	w.write_key("checkpoints");
+	w.begin_array();
 	std::for_each(save.checkpoints.begin(), save.checkpoints.end(),
-		[&w, &save](const XComCheckpointChunk& v) { XComCheckpointChunkToJson(v, w, save); w.enditem(false); }
+		[&w, &save](const checkpoint_chunk& v) { checkpoint_chunk_to_json(v, w, save); w.end_item(false); }
 	);
-	w.endArray();
-	w.endObject();
+	w.end_array();
+	w.end_object();
 }
 
 void usage(const char * name)
@@ -465,9 +464,9 @@ void usage(const char * name)
 	printf("Usage: %s -i <infile> -o <outfile>\n", name);
 }
 
-Buffer read_file(const std::string& filename)
+buffer<unsigned char> read_file(const std::string& filename)
 {
-	Buffer buffer;
+	buffer<unsigned char> buffer;
 	FILE *fp = fopen(filename.c_str(), "rb");
 	if (fp == nullptr) {
 		fprintf(stderr, "Error opening file\n");
@@ -479,15 +478,15 @@ Buffer read_file(const std::string& filename)
 		return{};
 	}
 
-	buffer.len = ftell(fp);
+	buffer.length = ftell(fp);
 
 	if (fseek(fp, 0, SEEK_SET) != 0) {
 		fprintf(stderr, "Error determining file length\n");
 		return{};
 	}
 
-	buffer.buf = std::make_unique<unsigned char[]>(buffer.len);
-	if (fread(buffer.buf.get(), 1, buffer.len, fp) != buffer.len) {
+	buffer.buf = std::make_unique<unsigned char[]>(buffer.length);
+	if (fread(buffer.buf.get(), 1, buffer.length, fp) != buffer.length) {
 		fprintf(stderr, "Error reading file contents\n");
 		return{};
 	}
@@ -522,17 +521,17 @@ int main(int argc, char *argv[])
 	}
 
 	long fileLen = 0;
-	Buffer fileBuf = read_file(infile);
+	buffer<unsigned char> fileBuf = read_file(infile);
 
-	if (fileBuf.len == 0) {
+	if (fileBuf.length == 0) {
 		return 1;
 	}
 
 	try {
-		XComReader reader{ std::move(fileBuf) };
-		XComSave save = reader.getSaveData();
-		JsonWriter writer{ outfile };
-		buildJson(save, writer);
+		reader rdr{ std::move(fileBuf) };
+		saved_game save = rdr.save_data();
+		json_writer w { outfile };
+		buildJson(save, w);
 	}
 	catch (std::exception e)
 	{

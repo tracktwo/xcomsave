@@ -3,402 +3,405 @@
 #include "xslib_internal.h"
 #include <cassert>
 #include <tuple>
-void XComWriter::ensureSpace(size_t count)
+
+namespace xcom
 {
-	ptrdiff_t currentCount = offset();
-
-	if ((currentCount + count) > bufLen_) {
-		size_t newLen = bufLen_ * 2;
-		unsigned char * newBuf = new unsigned char[newLen];
-		memcpy(newBuf, start_.get(), currentCount);
-		start_.reset(newBuf);
-		bufLen_ = newLen;
-		buf_ = start_.get() + currentCount;
-	}
-
-}
-
-void XComWriter::writeString(const std::string& str)
-{
-	if (str.empty()) {
-		// An empty string is just written as size 0
-		writeInt(0);
-	}
-	else {
-		// Ensure we have space for the string size + string data + trailing null
-		std::string conv = utf8toiso8859_1(str);
-		ensureSpace(conv.length() + 5);
-		writeInt(conv.length() + 1);
-		memcpy(buf_, conv.c_str(), conv.length());
-		buf_ += conv.length();
-		*buf_++ = 0;
-	}
-}
-
-void XComWriter::writeInt(int32_t val)
-{
-	ensureSpace(4);
-	*(reinterpret_cast<int32_t*>(buf_)) = val;
-	buf_ += 4;
-}
-
-
-void XComWriter::writeFloat(float val)
-{
-	ensureSpace(4);
-	*(reinterpret_cast<float*>(buf_)) = val;
-	buf_ += 4;
-}
-
-void XComWriter::writeBool(bool b)
-{
-	writeInt(b);
-}
-
-void XComWriter::writeRawBytes(unsigned char *buf, size_t len)
-{
-	ensureSpace(len);
-	memcpy(buf_, buf, len);
-	buf_ += len;
-}
-
-void XComWriter::writeHeader(const XComSaveHeader& header)
-{
-	writeInt(header.version);
-	writeInt(0);
-	writeInt(header.game_number);
-	writeInt(header.save_number);
-	writeString(header.save_description);
-	writeString(header.time);
-	writeString(header.map_command);
-	writeBool(header.tactical_save);
-	writeBool(header.ironman);
-	writeBool(header.autosave);
-	writeString(header.dlc);
-	writeString(header.language);
-
-	// Compute the CRC for the compressed data.
-	uint32_t compressedCrc = crc32b(start_.get() + 1024, bufLen_ - 1024);
-	writeInt(compressedCrc);
-	
-	int32_t hdrLen = buf_ - start_.get() + 4;
-	buf_ = start_.get() + 1016;
-	writeInt(hdrLen);
-	uint32_t hdrCrc = crc32b(start_.get(), hdrLen);
-	writeInt(hdrCrc);
-}
-
-void XComWriter::writeActorTable(const XComActorTable& actorTable)
-{
-	// Each actorTable entry has 2 entries in the save table; names are split.
-	writeInt(actorTable.size() * 2);
-	for (const std::string& actor : actorTable) {
-		std::tuple<std::string, std::string, int> tup = decompose_actor_name(actor);
-		writeString(std::get<1>(tup));
-		writeInt(std::get<2>(tup));
-		writeString(std::get<0>(tup));
-		writeInt(0);
-	}
-}
-
-struct PropertyWriterVisitor : public XComPropertyVisitor
-{
-	PropertyWriterVisitor(XComWriter* writer) : writer_(writer) {}
-
-	virtual void visitInt(XComIntProperty *prop) override
+	void writer::ensure(size_t count)
 	{
-		writer_->writeInt(prop->value);
+		ptrdiff_t current_count = offset();
+
+		if ((current_count + count) > length_) {
+			size_t newLen = length_ * 2;
+			unsigned char * newBuf = new unsigned char[newLen];
+			memcpy(newBuf, start_.get(), current_count);
+			start_.reset(newBuf);
+			length_ = newLen;
+			ptr_ = start_.get() + current_count;
+		}
+
 	}
 
-	virtual void visitFloat(XComFloatProperty *prop) override
+	void writer::write_string(const std::string& str)
 	{
-		writer_->writeFloat(prop->value);
-	}
-
-	virtual void visitBool(XComBoolProperty *prop) override
-	{
-		writer_->ensureSpace(1);
-		*writer_->buf_++ = prop->value;
-	}
-
-	virtual void visitString(XComStringProperty *prop) override
-	{
-		writer_->writeString(prop->str);
-	}
-
-	virtual void visitObject(XComObjectProperty *prop) override
-	{
-		if (prop->actor == 0xffffffff) {
-			writer_->writeInt(prop->actor);
-			writer_->writeInt(prop->actor);
+		if (str.empty()) {
+			// An empty string is just written as size 0
+			write_int(0);
 		}
 		else {
-			writer_->writeInt(prop->actor * 2 + 1);
-			writer_->writeInt(prop->actor * 2);
+			// Ensure we have space for the string size + string data + trailing null
+			std::string conv = util::utf8_to_iso8859_1(str);
+			ensure(conv.length() + 5);
+			write_int(conv.length() + 1);
+			memcpy(ptr_, conv.c_str(), conv.length());
+			ptr_ += conv.length();
+			*ptr_++ = 0;
 		}
 	}
 
-	virtual void visitByte(XComByteProperty *prop) override
+	void writer::write_int(int32_t val)
 	{
-		writer_->writeString(prop->enumType);
-		writer_->writeInt(0);
-		writer_->writeString(prop->enumVal);
-		writer_->writeInt(prop->extVal);
+		ensure(4);
+		*(reinterpret_cast<int32_t*>(ptr_)) = val;
+		ptr_ += 4;
 	}
 
-	virtual void visitStruct(XComStructProperty *prop) override
+
+	void writer::write_float(float val)
 	{
-		writer_->writeString(prop->structName);
-		writer_->writeInt(0);
-		if (prop->nativeDataLen > 0) {
-			writer_->writeRawBytes(prop->nativeData.get(), prop->nativeDataLen);
+		ensure(4);
+		*(reinterpret_cast<float*>(ptr_)) = val;
+		ptr_ += 4;
+	}
+
+	void writer::write_bool(bool b)
+	{
+		write_int(b);
+	}
+
+	void writer::write_raw(unsigned char *buf, size_t len)
+	{
+		ensure(len);
+		memcpy(ptr_, buf, len);
+		ptr_ += len;
+	}
+
+	void writer::write_header(const header& hdr)
+	{
+		write_int(hdr.version);
+		write_int(0);
+		write_int(hdr.game_number);
+		write_int(hdr.save_number);
+		write_string(hdr.save_description);
+		write_string(hdr.time);
+		write_string(hdr.map_command);
+		write_bool(hdr.tactical_save);
+		write_bool(hdr.ironman);
+		write_bool(hdr.autosave);
+		write_string(hdr.dlc);
+		write_string(hdr.language);
+
+		// Compute the CRC for the compressed data.
+		uint32_t compressed_crc = util::crc32b(start_.get() + 1024, length_ - 1024);
+		write_int(compressed_crc);
+
+		int32_t hdr_length = ptr_ - start_.get() + 4;
+		ptr_ = start_.get() + 1016;
+		write_int(hdr_length);
+		uint32_t hdr_crc = util::crc32b(start_.get(), hdr_length);
+		write_int(hdr_crc);
+	}
+
+	void writer::write_actor_table(const actor_table& actors)
+	{
+		// Each actorTable entry has 2 entries in the save table; names are split.
+		write_int(actors.size() * 2);
+		for (const std::string& actor : actors) {
+			std::tuple<std::string, std::string, int> tup = decompose_actor_name(actor);
+			write_string(std::get<1>(tup));
+			write_int(std::get<2>(tup));
+			write_string(std::get<0>(tup));
+			write_int(0);
 		}
-		else {
-			for (unsigned int i = 0; i < prop->structProps.size(); ++i) {
-				writer_->writeProperty(prop->structProps[i], 0);
-			}
-			writer_->writeString("None");
-			writer_->writeInt(0);
+	}
+
+	struct property_writer_visitor : public property_visitor
+	{
+		property_writer_visitor(writer* writer) : writer_(writer) {}
+
+		virtual void visit_int(int_property* prop) override
+		{
+			writer_->write_int(prop->value);
 		}
-	}
 
-	virtual void visitArray(XComArrayProperty *prop) override
-	{
-		writer_->writeInt(prop->array_bound);
-		size_t dataLen = prop->size() - 4;
-		writer_->writeRawBytes(prop->data.get(), dataLen);
-	}
+		virtual void visit_float(float_property *prop) override
+		{
+			writer_->write_float(prop->value);
+		}
 
-	virtual void visitObjectArray(XComObjectArrayProperty *prop) override
-	{
-		writer_->writeInt(prop->elements.size());
-		for (size_t i = 0; i < prop->elements.size(); ++i) {
-			if (prop->elements[i] == 0xffffffff) {
-				writer_->writeInt(prop->elements[i]);
-				writer_->writeInt(prop->elements[i]);
+		virtual void visit_bool(bool_property *prop) override
+		{
+			writer_->ensure(1);
+			*writer_->ptr_++ = prop->value;
+		}
+
+		virtual void visit_string(string_property *prop) override
+		{
+			writer_->write_string(prop->str);
+		}
+
+		virtual void visit_object(object_property *prop) override
+		{
+			if (prop->actor == 0xffffffff) {
+				writer_->write_int(prop->actor);
+				writer_->write_int(prop->actor);
 			}
 			else {
-				writer_->writeInt(prop->elements[i] * 2 + 1);
-				writer_->writeInt(prop->elements[i] * 2);
+				writer_->write_int(prop->actor * 2 + 1);
+				writer_->write_int(prop->actor * 2);
 			}
 		}
-	}
 
-	virtual void visitNumberArray(XComNumberArrayProperty *prop) override
-	{
-		writer_->writeInt(prop->elements.size());
-		for (size_t i = 0; i < prop->elements.size(); ++i) {
-			writer_->writeInt(prop->elements[i]);
+		virtual void visit_enum(enum_property *prop) override
+		{
+			writer_->write_string(prop->enum_type);
+			writer_->write_int(0);
+			writer_->write_string(prop->enum_value);
+			writer_->write_int(prop->extra_value);
 		}
-	}
 
-	virtual void visitStructArray(XComStructArrayProperty *prop) override
-	{
-		writer_->writeInt(prop->elements.size());
-		std::for_each(prop->elements.begin(), prop->elements.end(), [this](const XComPropertyList &pl) {
-			std::for_each(pl.begin(), pl.end(), [this](const XComPropertyPtr& p) {
-				writer_->writeProperty(p, 0);
+		virtual void visit_struct(struct_property *prop) override
+		{
+			writer_->write_string(prop->struct_name);
+			writer_->write_int(0);
+			if (prop->native_data_length > 0) {
+				writer_->write_raw(prop->native_data.get(), prop->native_data_length);
+			}
+			else {
+				for (unsigned int i = 0; i < prop->properties.size(); ++i) {
+					writer_->write_property(prop->properties[i], 0);
+				}
+				writer_->write_string("None");
+				writer_->write_int(0);
+			}
+		}
+
+		virtual void visit_array(array_property *prop) override
+		{
+			writer_->write_int(prop->array_bound);
+			size_t data_length = prop->size() - 4;
+			writer_->write_raw(prop->data.get(), data_length);
+		}
+
+		virtual void visit_object_array(object_array_property *prop) override
+		{
+			writer_->write_int(prop->elements.size());
+			for (size_t i = 0; i < prop->elements.size(); ++i) {
+				if (prop->elements[i] == -1) {
+					writer_->write_int(prop->elements[i]);
+					writer_->write_int(prop->elements[i]);
+				}
+				else {
+					writer_->write_int(prop->elements[i] * 2 + 1);
+					writer_->write_int(prop->elements[i] * 2);
+				}
+			}
+		}
+
+		virtual void visit_number_array(number_array_property *prop) override
+		{
+			writer_->write_int(prop->elements.size());
+			for (size_t i = 0; i < prop->elements.size(); ++i) {
+				writer_->write_int(prop->elements[i]);
+			}
+		}
+
+		virtual void visit_struct_array(struct_array_property *prop) override
+		{
+			writer_->write_int(prop->elements.size());
+			std::for_each(prop->elements.begin(), prop->elements.end(), [this](const property_list &pl) {
+				std::for_each(pl.begin(), pl.end(), [this](const property_ptr& p) {
+					writer_->write_property(p, 0);
+				});
+
+				// Write the "None" to indicate the end of this struct.
+				writer_->write_string("None");
+				writer_->write_int(0);
 			});
+		}
 
-			// Write the "None" to indicate the end of this struct.
-			writer_->writeString("None");
-			writer_->writeInt(0);
+		virtual void visit_static_array(static_array_property *) override
+		{
+			// This shouldn't happen: static arrays need special handling and can't be written normally as they don't
+			// really exist in the save format.
+			throw std::exception("Attempted to write a static array property");
+		}
+
+	private:
+		writer *writer_;
+	};
+
+	void writer::write_property(const property_ptr& prop, int32_t array_index)
+	{
+		// If this is a static array property we need to write only the contained properties, not the fake static array property created to contain it.
+		if (prop->kind == property::kind_t::static_array_property) {
+			static_array_property* static_array = dynamic_cast<static_array_property*>(prop.get());
+			for (unsigned int idx = 0; idx < static_array->properties.size(); ++idx) {
+				write_property(static_array->properties[idx], idx);
+			}
+		}
+		else {
+			// Write the common part of a property
+			write_string(prop->name);
+			write_int(0);
+			write_string(prop->kind_string());
+			write_int(0);
+			write_int(prop->size());
+			write_int(array_index);
+
+			// Write the specific part
+			property_writer_visitor v{ this };
+			prop->accept(&v);
+		}
+	}
+
+	void writer::write_checkpoint(const checkpoint& chk)
+	{
+		write_string(chk.name);
+		write_string(chk.instance_name);
+		write_float(chk.vector[0]);
+		write_float(chk.vector[1]);
+		write_float(chk.vector[2]);
+		write_int(chk.rotator[0]);
+		write_int(chk.rotator[1]);
+		write_int(chk.rotator[2]);
+		write_string(chk.class_name);
+		size_t total_property_size = 0;
+		std::for_each(chk.properties.begin(), chk.properties.end(), [&total_property_size](const property_ptr& prop) {
+			total_property_size += prop->full_size();
 		});
+		total_property_size += 9 + 4; // length of trailing "None" to terminate the list + the unknown int.
+		total_property_size += chk.pad_size;
+		write_int(total_property_size);
+		for (unsigned int i = 0; i < chk.properties.size(); ++i) {
+			write_property(chk.properties[i], 0);
+		}
+		write_string("None");
+		write_int(0);
+		ensure(chk.pad_size);
+		for (unsigned int i = 0; i < chk.pad_size; ++i) {
+			*ptr_++ = 0;
+		}
+		write_int(chk.template_index);
 	}
 
-	virtual void visitStaticArray(XComStaticArrayProperty *) override
+	void writer::write_checkpoint_table(const checkpoint_table& table)
 	{
-		// This shouldn't happen: static arrays need special handling and can't be written normally as they don't
-		// really exist in the save format.
-		throw std::exception("Attempted to write a static array property");
-	}
-
-private:
-	XComWriter *writer_;
-};
-
-void XComWriter::writeProperty(const XComPropertyPtr& prop, int32_t arrayIdx)
-{
-	// If this is a static array property we need to write only the contained properties, not the fake static array property created to contain it.
-	if (prop->kind == XComProperty::Kind::StaticArrayProperty) {
-		XComStaticArrayProperty* staticArray = dynamic_cast<XComStaticArrayProperty*>(prop.get());
-		for (unsigned int idx = 0; idx < staticArray->length(); ++idx) {
-			writeProperty(staticArray->properties[idx], idx);
+		write_int(table.size());
+		for (const checkpoint& chk : table) {
+			write_checkpoint(chk);
 		}
 	}
-	else {
-		// Write the common part of a property
-		writeString(prop->name);
-		writeInt(0);
-		writeString(prop->kind_string());
-		writeInt(0);
-		writeInt(prop->size());
-		writeInt(arrayIdx);
 
-		// Write the specific part
-		PropertyWriterVisitor v{ this };
-		prop->accept(&v);
-	}
-}
-
-void XComWriter::writeCheckpoint(const XComCheckpoint& chk)
-{
-	writeString(chk.name);
-	writeString(chk.instanceName);
-	writeFloat(chk.vector[0]);
-	writeFloat(chk.vector[1]);
-	writeFloat(chk.vector[2]);
-	writeInt(chk.rotator[0]);
-	writeInt(chk.rotator[1]);
-	writeInt(chk.rotator[2]);
-	writeString(chk.className);
-	size_t totalPropSize = 0;
-	std::for_each(chk.properties.begin(), chk.properties.end(), [&totalPropSize](const XComPropertyPtr& prop) {
-		totalPropSize += prop->full_size();
-	});
-	totalPropSize += 9 + 4; // length of trailing "None" to terminate the list + the unknown int.
-	totalPropSize += chk.padSize;
-	writeInt(totalPropSize);
-	for (unsigned int i = 0; i < chk.properties.size(); ++i) {
-		writeProperty(chk.properties[i], 0);
-	}
-	writeString("None");
-	writeInt(0);
-	// TODO Padsize isn't written properly
-	ensureSpace(chk.padSize);
-	for (unsigned int i = 0; i < chk.padSize; ++i) {
-		*buf_++ = 0;
-	}
-	writeInt(chk.templateIndex);
-}
-
-void XComWriter::writeCheckpointTable(const XComCheckpointTable& table)
-{
-	writeInt(table.size());
-	for (const XComCheckpoint& chk : table) {
-		writeCheckpoint(chk);
-	}
-}
-
-void XComWriter::writeCheckpointChunk(const XComCheckpointChunk& chunk)
-{
-	writeInt(chunk.unknownInt1);
-	writeString(chunk.gameType);
-	writeString("None");
-	writeInt(chunk.unknownInt2);
-	writeCheckpointTable(chunk.checkpointTable);
-	writeInt(0); // name table length
-	writeString(chunk.className);
-	writeActorTable(chunk.actorTable);
-	writeInt(chunk.unknownInt3);
-	writeInt(0); // actor template table length
-	writeString(chunk.displayName);
-	writeString(chunk.mapName);
-	writeInt(chunk.unknownInt4);
-}
-
-void XComWriter::writeCheckpointChunks(const XComCheckpointChunkTable& chunks)
-{
-	for (const XComCheckpointChunk& chunk : chunks) {
-		writeCheckpointChunk(chunk);
-	}
-}
-
-Buffer XComWriter::compress()
-{
-	int totalBufSize = offset();
-	// Allocate a new buffer to hold the compressed data. Just allocate
-	// as much as the uncompressed buffer since we don't know how big
-	// it will be, but it'll presumably be smaller.
-	Buffer b;
-	b.buf = std::make_unique<unsigned char[]>(totalBufSize);
-
-	// Compress the data in 128k chunks
-	int idx = 0;
-	static const int chunkSize = 0x20000;
-
-	// The "flags" (?) value is always 20000, even for trailing chunks
-	static const int chunkFlags = 0x20000;
-	unsigned char *bufPtr = start_.get();
-	// Reserve 1024 bytes at the start of the compressed buffer for the header.
-	unsigned char *compressedPtr = b.buf.get() + 1024;
-	int bytesLeft = totalBufSize;
-	int totalOutSize = 1024;
-
-	lzo_init();
-
-	std::unique_ptr<char[]> wrkMem = std::make_unique<char[]>(LZO1X_1_MEM_COMPRESS);
-
-	do
+	void writer::write_checkpoint_chunk(const checkpoint_chunk& chunk)
 	{
-		int uncompressed_size = (bytesLeft < chunkSize) ? bytesLeft : chunkSize;
-		unsigned long bytesCompressed = bytesLeft - 24;
-		// Compress the chunk
-		int ret = lzo1x_1_compress(bufPtr, uncompressed_size, compressedPtr + 24, &bytesCompressed, wrkMem.get());
-		if (ret != LZO_E_OK) {
-			fprintf(stderr, "Error compressing data: %d", ret);
-		}
-		// Write the magic number
-		*reinterpret_cast<int*>(compressedPtr) = UPK_Magic;
-		compressedPtr += 4;
-		// Write the "flags" (?)
-		*reinterpret_cast<int*>(compressedPtr) = chunkFlags;
-		compressedPtr += 4;
-		// Write the compressed size
-		*reinterpret_cast<int*>(compressedPtr) = bytesCompressed;
-		compressedPtr += 4;
-		// Write the uncompressed size
-		*reinterpret_cast<int*>(compressedPtr) = uncompressed_size;
-		compressedPtr += 4;
-		// Write the compressed size
-		*reinterpret_cast<int*>(compressedPtr) = bytesCompressed;
-		compressedPtr += 4;
-		// Write the uncompressed size
-		*reinterpret_cast<int*>(compressedPtr) = uncompressed_size;
-		compressedPtr += 4;
-
-		compressedPtr += bytesCompressed;
-		bytesLeft -= chunkSize;
-		bufPtr += chunkSize;
-		totalOutSize += bytesCompressed + 24;
-	} while (bytesLeft > 0);
-
-	b.len = totalOutSize;
-	return b;
-}
-
-Buffer XComWriter::getSaveData()
-{
-	start_ = std::make_unique<unsigned char[]>(initial_size);
-	buf_ = start_.get();
-	bufLen_ = initial_size;
-
-	// Write out the initial actor table
-	writeActorTable(save_.actorTable);
-
-	// Write the checkpoint chunks
-	writeCheckpointChunks(save_.checkpoints);
-
-	// Write the raw data file
-	FILE *outFile = fopen("newoutput.dat", "wb");
-	if (outFile == nullptr) {
-		throw std::exception("Failed to open output file");
+		write_int(chunk.unknown_int1);
+		write_string(chunk.game_type);
+		write_string("None");
+		write_int(chunk.unknown_int2);
+		write_checkpoint_table(chunk.checkpoints);
+		write_int(0); // name table length
+		write_string(chunk.class_name);
+		write_actor_table(chunk.actors);
+		write_int(chunk.unknown_int3);
+		write_int(0); // actor template table length
+		write_string(chunk.display_name);
+		write_string(chunk.map_name);
+		write_int(chunk.unknown_int4);
 	}
-	fwrite(start_.get(), 1, offset(), outFile);
-	fclose(outFile);
 
-	Buffer b = compress();
+	void writer::write_checkpoint_chunks(const checkpoint_chunk_table& chunks)
+	{
+		for (const checkpoint_chunk& chunk : chunks) {
+			write_checkpoint_chunk(chunk);
+		}
+	}
 
-	// Reset the internal buffer to the compressed data to write the header
-	start_ = std::move(b.buf);
-	buf_ = start_.get();
-	bufLen_ = b.len;
+	buffer<unsigned char> writer::compress()
+	{
+		int totalBufSize = offset();
+		// Allocate a new buffer to hold the compressed data. Just allocate
+		// as much as the uncompressed buffer since we don't know how big
+		// it will be, but it'll presumably be smaller.
+		buffer<unsigned char> b;
+		b.buf = std::make_unique<unsigned char[]>(totalBufSize);
 
-	writeHeader(save_.header);
+		// Compress the data in 128k chunks
+		int idx = 0;
+		static const int chunk_size = 0x20000;
 
-	// Move the save data back into the buffer to return
-	b.buf = std::move(start_);
-	buf_ = nullptr;
-	bufLen_ = 0;
-	return b;
+		// The "flags" (?) value is always 20000, even for trailing chunks
+		static const int chunk_flags = 0x20000;
+		unsigned char *buf_ptr = start_.get();
+		// Reserve 1024 bytes at the start of the compressed buffer for the header.
+		unsigned char *compressed_ptr = b.buf.get() + 1024;
+		int bytes_left = totalBufSize;
+		int total_out_size = 1024;
+
+		lzo_init();
+
+		std::unique_ptr<char[]> wrkMem = std::make_unique<char[]>(LZO1X_1_MEM_COMPRESS);
+
+		do
+		{
+			int uncompressed_size = (bytes_left < chunk_size) ? bytes_left : chunk_size;
+			unsigned long bytes_compressed = bytes_left - 24;
+			// Compress the chunk
+			int ret = lzo1x_1_compress(buf_ptr, uncompressed_size, compressed_ptr + 24, &bytes_compressed, wrkMem.get());
+			if (ret != LZO_E_OK) {
+				fprintf(stderr, "Error compressing data: %d", ret);
+			}
+			// Write the magic number
+			*reinterpret_cast<int*>(compressed_ptr) = UPK_Magic;
+			compressed_ptr += 4;
+			// Write the "flags" (?)
+			*reinterpret_cast<int*>(compressed_ptr) = chunk_flags;
+			compressed_ptr += 4;
+			// Write the compressed size
+			*reinterpret_cast<int*>(compressed_ptr) = bytes_compressed;
+			compressed_ptr += 4;
+			// Write the uncompressed size
+			*reinterpret_cast<int*>(compressed_ptr) = uncompressed_size;
+			compressed_ptr += 4;
+			// Write the compressed size
+			*reinterpret_cast<int*>(compressed_ptr) = bytes_compressed;
+			compressed_ptr += 4;
+			// Write the uncompressed size
+			*reinterpret_cast<int*>(compressed_ptr) = uncompressed_size;
+			compressed_ptr += 4;
+
+			compressed_ptr += bytes_compressed;
+			bytes_left -= chunk_size;
+			buf_ptr += chunk_size;
+			total_out_size += bytes_compressed + 24;
+		} while (bytes_left > 0);
+
+		b.length = total_out_size;
+		return b;
+	}
+
+	buffer<unsigned char> writer::save_data()
+	{
+		start_ = std::make_unique<unsigned char[]>(initial_size);
+		ptr_ = start_.get();
+		length_ = initial_size;
+
+		// Write out the initial actor table
+		write_actor_table(save_.actors);
+
+		// Write the checkpoint chunks
+		write_checkpoint_chunks(save_.checkpoints);
+
+		// Write the raw data file
+		FILE *out_file = fopen("newoutput.dat", "wb");
+		if (out_file == nullptr) {
+			throw std::exception("Failed to open output file");
+		}
+		fwrite(start_.get(), 1, offset(), out_file);
+		fclose(out_file);
+
+		buffer<unsigned char> b = compress();
+
+		// Reset the internal buffer to the compressed data to write the header
+		start_ = std::move(b.buf);
+		ptr_ = start_.get();
+		length_ = b.length;
+
+		write_header(save_.header);
+
+		// Move the save data back into the buffer to return
+		b.buf = std::move(start_);
+		ptr_ = nullptr;
+		length_ = 0;
+		return b;
+	}
 }
