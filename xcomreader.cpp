@@ -1,3 +1,22 @@
+/*
+XCom EW Saved Game Reader
+Copyright(C) 2015
+
+This program is free software; you can redistribute it and / or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along
+with this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Fifth Floor, Boston, MA 02110 - 1301 USA.
+*/
+
 #include "minilzo.h"
 #include "xcomreader.h"
 #include "util.h"
@@ -423,12 +442,12 @@ namespace xcom
 		return names;
 	}
 
-	int32_t reader::uncompressed_size()
+	size_t reader::uncompressed_size()
 	{
 		// The compressed data begins 1024 bytes into the file.
 		const unsigned char* p = start_.get() + 1024;
-		uint32_t compressed_size;
-		uint32_t uncompressed_size = 0;
+		size_t compressed_size;
+		size_t uncompressed_size = 0;
 		do
 		{
 			// Expect the magic header value 0x9e2a83c1 at the start of each chunk
@@ -460,7 +479,7 @@ namespace xcom
 		{
 			// Expect the magic header value 0x9e2a83c1 at the start of each chunk
 			if (*(reinterpret_cast<const uint32_t*>(p)) != UPK_Magic) {
-				throw format_exception(offset(), "Failed to find compressed chunk header\n");
+				throw format_exception(p - start_.get(), "Failed to find compressed chunk header\n");
 				return;
 			}
 
@@ -473,7 +492,7 @@ namespace xcom
 			unsigned long decomp_size = uncompressed_size;
 
 			if (lzo1x_decompress_safe(p + 24, compressed_size, outp, &decomp_size, nullptr) != LZO_E_OK) {
-				throw format_exception(offset(), "LZO decompress of save data failed\n");
+				throw format_exception(p - start_.get(), "LZO decompress of save data failed\n");
 				return;
 			}
 
@@ -482,7 +501,7 @@ namespace xcom
 
 			if (decomp_size != uncompressed_size)
 			{
-				throw format_exception(offset(), "Failed to decompress chunk\n");
+				throw format_exception(p - start_.get(), "Failed to decompress chunk\n");
 				return;
 			}
 
@@ -505,19 +524,19 @@ namespace xcom
 		int total_uncompressed = 0;
 		save.header = read_header();
 
-		int32_t uncompressed = uncompressed_size();
-		if (uncompressed < 0) {
+		size_t uncompressed_length = uncompressed_size();
+		if (uncompressed_length < 0) {
 			return{};
 		}
 
-		unsigned char *data = new unsigned char[uncompressed];
+		unsigned char *data = new unsigned char[uncompressed_length];
 		uncompressed_data(data);
 
 		// We're now done with the compressed file. Swap over to the uncompressed data
 		ptr_ = data;
 		start_.reset(ptr_);
-		length_ = uncompressed;
-		fwrite(data, 1, uncompressed, out_file);
+		length_ = uncompressed_length;
+		fwrite(data, 1, length_, out_file);
 		fclose(out_file);
 		save.actors = read_actor_table();
 

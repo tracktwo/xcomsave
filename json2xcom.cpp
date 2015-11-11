@@ -584,8 +584,11 @@ int main(int argc, char *argv[])
 		fwrite(save_buffer.buf.get(), 1, save_buffer.length, fp);
 		fclose(fp);
 	}
-	catch (std::exception e)
-	{
+	catch (format_exception e) {
+		fprintf(stderr, "Error (0x%08x): ", e.offset());
+		fprintf(stderr, e.what());
+	}
+	catch (std::exception e) {
 		fprintf(stderr, e.what());
 		return 1;
 	}

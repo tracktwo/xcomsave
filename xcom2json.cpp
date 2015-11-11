@@ -541,8 +541,11 @@ int main(int argc, char *argv[])
 		json_writer w { outfile };
 		buildJson(save, w);
 	}
-	catch (std::exception e)
-	{
+	catch (format_exception e) {
+		fprintf(stderr, "Error (0x%08x): ", e.offset());
+		fprintf(stderr, e.what());
+	}
+	catch (std::exception e) {
 		fprintf(stderr, e.what());
 		return 1;
 	}
