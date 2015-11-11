@@ -532,7 +532,17 @@ namespace xcom
 		checkpoint_chunk_table checkpoints;
 	};
 
-	std::string build_actor_name(const std::string& package, const std::string& cls, int instance);
-	std::tuple<std::string, std::string, int> decompose_actor_name(const std::string& actorName);
+	// An exception reading or writing the file
+	struct format_exception : public std::exception
+	{
+		format_exception(ptrdiff_t ofs, const char *fmt, ...);
+		ptrdiff_t offset() const { return offset_; };
+		const char *what() const { return buf_; }
+
+	protected:
+		ptrdiff_t offset_;
+		char buf_[1024];
+	};
+
 } // namespace xcom
 #endif // XCOM_H

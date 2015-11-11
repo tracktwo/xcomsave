@@ -5,6 +5,7 @@
 #include <cassert>
 #include <sstream>
 #include "xcom.h"
+#include <stdarg.h>
 
 namespace xcom
 {
@@ -191,7 +192,10 @@ namespace xcom
 			return "ArrayProperty";
 		case property::kind_t::static_array_property: return "StaticArrayProperty";
 		default:
-			throw std::exception("getPropertyKindString: Invalid property kind\n");
+			std::string s = "Invalid property kind: ";
+			s += static_cast<int>(kind);
+			s += "\n";
+			throw std::exception(s.c_str());
 		}
 	}
 
@@ -257,4 +261,11 @@ namespace xcom
 		return std::make_tuple(package, cls, instance + 1);
 	}
 
+	format_exception::format_exception(ptrdiff_t offset, const char *msg, ...)
+	{
+		va_list args;
+		va_start(args, msg);
+		vsnprintf(buf_, sizeof buf_, msg, args);
+		va_end(args);
+	}
 }

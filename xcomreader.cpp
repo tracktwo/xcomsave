@@ -101,12 +101,12 @@ namespace xcom
 			std::string actor_name = read_string();
 			int32_t instance = read_int();
 			if (instance == 0) {
-				throw std::exception("Error: malformed actor table entry: expected a non-zero instance\n");
+				throw format_exception(offset(), "Malformed actor table entry: expected a non-zero instance\n");
 			}
 			std::string package = read_string();
 			int32_t sentinel = read_int();
 			if (sentinel != 0) {
-				throw std::exception("Error: malformed actor table entry: missing 0 instance\n");
+				throw format_exception(offset(), "Malformed actor table entry: missing 0 instance\n");
 			}
 			actors.push_back(build_actor_name(package, actor_name, instance));
 		}
@@ -117,10 +117,11 @@ namespace xcom
 	property_ptr reader::make_struct_property(const std::string &name)
 	{
 		std::string struct_name = read_string();
-		int32_t innerUnknown = read_int();
-		if (innerUnknown != 0) {
-			DBG("Read non-zero prop unknown3 value: %x\n", innerUnknown);
+		int32_t inner_unknown = read_int();
+		if (inner_unknown != 0) {
+			throw format_exception(offset(), "Read non-zero prop unknown value in struct property: %x\n", inner_unknown);
 		}
+
 		// Special case certain structs
 		if (struct_name.compare("Vector2D") == 0) {
 			std::unique_ptr<unsigned char[]> nativeData = std::make_unique<unsigned char[]>(8);
@@ -190,7 +191,7 @@ namespace xcom
 						elements.push_back(actor1);
 					}
 					else if (actor1 != (actor2 + 1)) {
-						throw std::exception("Error: malformed object array: expected related actor numbers\n");
+						throw format_exception(offset(), "Assertion failed: expected related actor numbers in object array\n");
 					}
 					else {
 						elements.push_back(actor1 / 2);
@@ -233,7 +234,7 @@ namespace xcom
 			std::string name = read_string();
 			int32_t unknown1 = read_int();
 			if (unknown1 != 0) {
-				DBG("Read non-zero prop unknown value: %x\n", unknown1);
+				throw format_exception(offset(), "Read non-zero property unknown value: %x\n", unknown1);
 			}
 
 			if (name.compare("None") == 0) {
@@ -242,7 +243,7 @@ namespace xcom
 			std::string prop_type = read_string();
 			int32_t unknown2 = read_int();
 			if (unknown2 != 0) {
-				DBG("Read non-zero prop unknown2 value: %x\n", unknown2);
+				throw format_exception(offset(), "Read non-zero property unknown2 value: %x\n", unknown2);
 			}
 			int32_t prop_size = read_int();
 			int32_t array_index = read_int();
@@ -253,7 +254,7 @@ namespace xcom
 				int32_t actor1 = read_int();
 				int32_t actor2 = read_int();
 				if (actor1 != -1 && actor1 != (actor2 + 1)) {
-					throw std::exception("Assertion failed: object references not related.\n");
+					throw format_exception(offset(), "Assertion failed: actor references in object property not related.\n");
 				}
 
 				prop = std::make_unique<object_property>(name, (actor1 == -1) ? actor1 : (actor1 / 2));
@@ -267,7 +268,7 @@ namespace xcom
 				std::string enum_type = read_string();
 				int32_t inner_unknown = read_int();
 				if (inner_unknown != 0) {
-					DBG("Read non-zero prop unknown3 value: %x\n", inner_unknown);
+					throw format_exception(offset(), "Read non-zero enum property unknown value: %x\n", inner_unknown);
 				}
 				std::string enum_val = read_string();
 				int32_t extra_val = read_int();
@@ -294,7 +295,7 @@ namespace xcom
 			}
 			else
 			{
-				DBG("Error: unknown property type %s\n", prop_type.c_str());
+				throw format_exception(offset(), "Unknown property type %s\n", prop_type.c_str());
 			}
 
 			if (prop.get() != nullptr) {
@@ -304,7 +305,7 @@ namespace xcom
 				}
 				else {
 					if (properties.back()->name.compare(name) != 0) {
-						DBG("Static array index found but doesn't match last property at offset 0x%x\n", ptr_ - start_.get());
+						throw format_exception(offset(), "Static array index found but doesn't match previous property\n");
 					}
 
 					if (properties.back()->kind == property::kind_t::static_array_property) {
@@ -352,7 +353,7 @@ namespace xcom
 			chk.class_name = read_string();
 			int32_t prop_length = read_int();
 			if (prop_length < 0) {
-				throw std::exception("Error: Found negative property length\n");
+				throw format_exception(offset(), "Found negative property length\n");
 			}
 			chk.pad_size = 0;
 			const unsigned char* start_ptr = ptr_;
@@ -363,7 +364,7 @@ namespace xcom
 
 				for (unsigned int i = 0; i < chk.pad_size; ++i) {
 					if (*ptr_++ != 0) {
-						DBG("Found non-zero padding byte at offset %x", (offset() - 1));
+						throw format_exception(offset(), "Found non-zero padding byte\n");
 					}
 				}
 			}
@@ -409,7 +410,7 @@ namespace xcom
 			memcpy(entry.zeros, ptr_, 8);
 			ptr_ += 8;
 			if (memcmp(entry.zeros, all_zeros, 8) != 0) {
-				fprintf(stderr, "Error: Expected all zeros in name table entry");
+				throw format_exception(offset(), "Expected all zeros in name table entry\n");
 				return{};
 			}
 			entry.data_length = read_int();
@@ -432,7 +433,7 @@ namespace xcom
 		{
 			// Expect the magic header value 0x9e2a83c1 at the start of each chunk
 			if (*(reinterpret_cast<const int32_t*>(p)) != UPK_Magic) {
-				fprintf(stderr, "Failed to find compressed chunk at offset 0x%08x", offset());
+				throw format_exception(offset(), "Failed to find compressed chunk header\n");
 				return -1;
 			}
 
@@ -459,7 +460,7 @@ namespace xcom
 		{
 			// Expect the magic header value 0x9e2a83c1 at the start of each chunk
 			if (*(reinterpret_cast<const uint32_t*>(p)) != UPK_Magic) {
-				fprintf(stderr, "Failed to find compressed chunk at offset 0x%08x", (p - start_.get()));
+				throw format_exception(offset(), "Failed to find compressed chunk header\n");
 				return;
 			}
 
@@ -472,7 +473,7 @@ namespace xcom
 			unsigned long decomp_size = uncompressed_size;
 
 			if (lzo1x_decompress_safe(p + 24, compressed_size, outp, &decomp_size, nullptr) != LZO_E_OK) {
-				fprintf(stderr, "LZO decompress of save data failed\n");
+				throw format_exception(offset(), "LZO decompress of save data failed\n");
 				return;
 			}
 
@@ -481,7 +482,7 @@ namespace xcom
 
 			if (decomp_size != uncompressed_size)
 			{
-				fprintf(stderr, "Failed to decompress chunk!");
+				throw format_exception(offset(), "Failed to decompress chunk\n");
 				return;
 			}
 
@@ -497,7 +498,7 @@ namespace xcom
 		const unsigned char *p = ptr_ + 1024;
 		FILE *out_file = fopen("output.dat", "wb");
 		if (out_file == nullptr) {
-			fprintf(stderr, "Failed to open output file: %d", errno);
+			throw std::exception("Failed to open output file");
 		}
 		int chunk_count = 0;
 		int total_compressed = 0;
@@ -519,7 +520,7 @@ namespace xcom
 		fwrite(data, 1, uncompressed, out_file);
 		fclose(out_file);
 		save.actors = read_actor_table();
-		DBG("Finished reading actor table (%x) at offset %x\n", save.actors.size(), offset());
+
 		// Jump back to here after each chunk
 		do {
 			checkpoint_chunk chunk;
@@ -527,27 +528,19 @@ namespace xcom
 			chunk.game_type = read_string();
 			std::string none = read_string();
 			if (none != "None") {
-				fprintf(stderr, "Error locating 'None' after actor table.\n");
+				throw format_exception(offset(), "Failed to locate 'None' after actor table\n");
 				return{};
 			}
 
 			chunk.unknown_int2 = read_int();
 			chunk.checkpoints = read_checkpoint_table();
-			DBG("Finished reading checkpoint table at offset %x\n", offset());
-
 			int32_t name_table_length = read_int();
 			assert(name_table_length == 0);
-
 			chunk.class_name = read_string();
 			chunk.actors = read_actor_table();
-			DBG("Finished reading second actor table (%x) at offset %x\n", chunk.actors.size(), offset());
-
 			chunk.unknown_int3 = read_int();
-
 			actor_template_table actor_templates = read_actor_template_table(); // (only seems to be present for tactical saves?)
 			assert(actor_templates.size() == 0);
-			DBG("Finished reading actor template table at offset %x\n", offset());
-
 			chunk.display_name = read_string(); //unknown (game name)
 			chunk.map_name = read_string(); //unknown (map name)
 			chunk.unknown_int4 = read_int(); //unknown  (checksum?)

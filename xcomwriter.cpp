@@ -11,11 +11,11 @@ namespace xcom
 		ptrdiff_t current_count = offset();
 
 		if ((current_count + count) > length_) {
-			size_t newLen = length_ * 2;
-			unsigned char * newBuf = new unsigned char[newLen];
-			memcpy(newBuf, start_.get(), current_count);
-			start_.reset(newBuf);
-			length_ = newLen;
+			size_t new_length = length_ * 2;
+			unsigned char * new_buffer = new unsigned char[new_length];
+			memcpy(new_buffer, start_.get(), current_count);
+			start_.reset(new_buffer);
+			length_ = new_length;
 			ptr_ = start_.get() + current_count;
 		}
 
@@ -213,7 +213,7 @@ namespace xcom
 		{
 			// This shouldn't happen: static arrays need special handling and can't be written normally as they don't
 			// really exist in the save format.
-			throw std::exception("Attempted to write a static array property");
+			throw std::exception("Attempted to write a static array property\n");
 		}
 
 	private:
@@ -384,7 +384,7 @@ namespace xcom
 		// Write the raw data file
 		FILE *out_file = fopen("newoutput.dat", "wb");
 		if (out_file == nullptr) {
-			throw std::exception("Failed to open output file");
+			throw std::exception("Failed to open output file\n");
 		}
 		fwrite(start_.get(), 1, offset(), out_file);
 		fclose(out_file);

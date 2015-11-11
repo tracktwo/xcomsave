@@ -494,7 +494,7 @@ saved_game build_save(const Json& json)
 
 void usage(const char * name)
 {
-	printf("Usage: %s -i <infile> -o <outfile>\n", name);
+	printf("Usage: %s [-o <outfile>] <infile>\n", name);
 }
 
 buffer<char> read_file(const std::string& filename)
@@ -530,8 +530,8 @@ buffer<char> read_file(const std::string& filename)
 int main(int argc, char *argv[])
 {
 	bool writesave = false;
-	const char *infile = nullptr;
-	const char *outfile = nullptr;
+	std::string  infile;
+	std::string outfile;
 
 	if (argc <= 1) {
 		usage(argv[0]);
@@ -539,20 +539,33 @@ int main(int argc, char *argv[])
 	}
 
 	for (int i = 1; i < argc; ++i) {
-		if (strcmp(argv[i], "-i") == 0) {
-			infile = argv[++i];
-		}
-		else if (strcmp(argv[i], "-o") == 0) {
+		if (strcmp(argv[i], "-o") == 0) {
 			outfile = argv[++i];
+		}
+		else {
+			if (!infile.empty()) {
+				usage(argv[0]);
+				exit(1);
+			}
+			infile = argv[i];
 		}
 	}
 
-	if (infile == nullptr || outfile == nullptr) {
+	if (infile.empty()) {
 		usage(argv[0]);
 		return 1;
 	}
 
-	long fileLen = 0;
+	if (outfile.empty()) {
+		size_t pos = infile.find_last_of(".json");
+		if (pos != std::string::npos) {
+			outfile = infile.substr(0, pos);
+		}
+		else {
+			outfile = infile + ".out";
+		}
+	}
+
 	buffer<char> buf = read_file(infile);
 
 	if (buf.length == 0) {
@@ -567,7 +580,7 @@ int main(int argc, char *argv[])
 		writer w(std::move(save));
 		buffer<unsigned char> save_buffer = w.save_data();
 
-		FILE *fp = fopen(outfile, "wb");
+		FILE *fp = fopen(outfile.c_str(), "wb");
 		fwrite(save_buffer.buf.get(), 1, save_buffer.length, fp);
 		fclose(fp);
 	}

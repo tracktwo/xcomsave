@@ -22,6 +22,8 @@ namespace xcom
 		std::unique_ptr<unsigned char[]> from_hex(const std::string& str);
 	}
 
+	std::string build_actor_name(const std::string& package, const std::string& cls, int instance);
+	std::tuple<std::string, std::string, int> decompose_actor_name(const std::string& actorName);
 	std::string property_kind_to_string(property::kind_t kind);
 }
 #endif // UTIL_H
