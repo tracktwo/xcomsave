@@ -527,7 +527,7 @@ namespace xcom
 
 	struct saved_game
 	{
-		header header;
+		header hdr;
 		actor_table actors;
 		checkpoint_chunk_table checkpoints;
 	};
@@ -535,12 +535,12 @@ namespace xcom
 	// An exception reading or writing the file
 	struct format_exception : public std::exception
 	{
-		format_exception(ptrdiff_t ofs, const char *fmt, ...);
-		ptrdiff_t offset() const { return offset_; };
-		const char *what() const { return buf_; }
+		format_exception(std::ptrdiff_t ofs, const char *fmt, ...);
+		std::ptrdiff_t offset() const noexcept { return offset_; };
+		const char *what() const noexcept { return buf_; }
 
 	protected:
-		ptrdiff_t offset_;
+		std::ptrdiff_t offset_;
 		char buf_[1024];
 	};
 

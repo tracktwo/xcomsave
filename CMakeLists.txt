@@ -1,5 +1,10 @@
 cmake_minimum_required (VERSION 2.6)
 project (xslib)
+
+# Linux-specific configuration
+if (UNIX)
+set (CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} -std=c++14)
+endif (UNIX)
 set (xslib_sources minilzo-2.09/minilzo.c xcomreader.cpp xcomwriter.cpp util.cpp)
 set (xslib_headers xcomreader.h xcomwriter.h xcom.h util.h xslib_internal.h)
 

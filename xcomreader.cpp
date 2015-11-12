@@ -6,6 +6,8 @@
 #include <string>
 #include <memory>
 #include <cassert>
+#include <cstdlib>
+#include <cstring>
 
 namespace xcom
 {
@@ -77,13 +79,13 @@ namespace xcom
 		uint32_t computed_hdr_crc = util::crc32b(start_.get(), hdr_size);
 		if (hdr_crc != computed_hdr_crc)
 		{
-			throw std::exception("CRC mismatch in header. Bad save?");
+			throw std::runtime_error("CRC mismatch in header. Bad save?");
 		}
 
 		uint32_t computed_compressed_crc = util::crc32b(start_.get() + 1024, length_ - 1024);
 		if (computed_compressed_crc != compressed_crc)
 		{
-			throw std::exception("CRC mismatch in compressed data. Bad save?");
+			throw std::runtime_error("CRC mismatch in compressed data. Bad save?");
 		}
 		return hdr;
 	}
@@ -498,12 +500,12 @@ namespace xcom
 		const unsigned char *p = ptr_ + 1024;
 		FILE *out_file = fopen("output.dat", "wb");
 		if (out_file == nullptr) {
-			throw std::exception("Failed to open output file");
+			throw std::runtime_error("Failed to open output file");
 		}
 		int chunk_count = 0;
 		int total_compressed = 0;
 		int total_uncompressed = 0;
-		save.header = read_header();
+		save.hdr = read_header();
 
 		int32_t uncompressed = uncompressed_size();
 		if (uncompressed < 0) {

@@ -8,6 +8,7 @@
 #include <fstream>
 #include <sstream>
 #include <algorithm>
+#include <cstring>
 
 using namespace xcom;
 
@@ -49,13 +50,10 @@ static std::string escape(const std::string& str) {
 
 struct json_writer
 {
-	json_writer(const std::string& filename)
+	json_writer(const std::string& filename) :
+		out(filename), indent_level(0), needs_comma(false), skip_indent(true)
 	{
-		out = std::ofstream{ filename };
 		out.setf(std::ofstream::boolalpha);
-		indent_level = 0;
-		needs_comma = false;
-		skip_indent = true;
 	}
 
 	void indent()
@@ -425,7 +423,7 @@ void buildJson(const saved_game& save, json_writer& w)
 	w.begin_object();
 
 	// Write the header
-	const header &hdr = save.header;
+	const header &hdr = save.hdr;
 
 	w.write_key("header");
 	w.begin_object();
