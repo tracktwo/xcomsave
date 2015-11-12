@@ -514,14 +514,6 @@ namespace xcom
 	saved_game reader::save_data()
 	{
 		saved_game save;
-		const unsigned char *p = ptr_ + 1024;
-		FILE *out_file = fopen("output.dat", "wb");
-		if (out_file == nullptr) {
-			throw std::exception("Failed to open output file");
-		}
-		int chunk_count = 0;
-		int total_compressed = 0;
-		int total_uncompressed = 0;
 		save.header = read_header();
 
 		size_t uncompressed_length = uncompressed_size();
@@ -536,8 +528,14 @@ namespace xcom
 		ptr_ = data;
 		start_.reset(ptr_);
 		length_ = uncompressed_length;
+#if 0
+		FILE *out_file = fopen("output.dat", "wb");
+		if (out_file == nullptr) {
+			throw std::exception("Failed to open output file");
+		}
 		fwrite(data, 1, length_, out_file);
 		fclose(out_file);
+#endif
 		save.actors = read_actor_table();
 
 		// Jump back to here after each chunk

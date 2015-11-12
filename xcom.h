@@ -33,6 +33,8 @@ namespace xcom
 	// The supported saved game version
 	static const int save_version = 0x10;
 
+	// A buffer object for performing file IO. An xcom save may be read from
+	// or written to a buffer instance or a file.
 	template <typename T>
 	struct buffer
 	{
@@ -167,18 +169,18 @@ namespace xcom
 	// Visit all property types.
 	struct property_visitor
 	{
-		virtual void visit_int(int_property*) = 0;
-		virtual void visit_float(float_property*) = 0;
-		virtual void visit_bool(bool_property*) = 0;
-		virtual void visit_string(string_property*) = 0;
-		virtual void visit_object(object_property*) = 0;
-		virtual void visit_enum(enum_property*) = 0;
-		virtual void visit_struct(struct_property*) = 0;
-		virtual void visit_array(array_property*) = 0;
-		virtual void visit_object_array(object_array_property*) = 0;
-		virtual void visit_number_array(number_array_property*) = 0;
-		virtual void visit_struct_array(struct_array_property*) = 0;
-		virtual void visit_static_array(static_array_property*) = 0;
+		virtual void visit(int_property*) = 0;
+		virtual void visit(float_property*) = 0;
+		virtual void visit(bool_property*) = 0;
+		virtual void visit(string_property*) = 0;
+		virtual void visit(object_property*) = 0;
+		virtual void visit(enum_property*) = 0;
+		virtual void visit(struct_property*) = 0;
+		virtual void visit(array_property*) = 0;
+		virtual void visit(object_array_property*) = 0;
+		virtual void visit(number_array_property*) = 0;
+		virtual void visit(struct_array_property*) = 0;
+		virtual void visit(static_array_property*) = 0;
 	};
 
 	// A list of properties.
@@ -197,7 +199,7 @@ namespace xcom
 		}
 
 		virtual void accept(property_visitor *v) {
-			v->visit_object(this);
+			v->visit(this);
 		}
 
 		int32_t actor;
@@ -214,7 +216,7 @@ namespace xcom
 		}
 
 		virtual void accept(property_visitor *v) {
-			v->visit_int(this);
+			v->visit(this);
 		}
 
 		int32_t value;
@@ -237,7 +239,7 @@ namespace xcom
 		}
 
 		virtual void accept(property_visitor *v) {
-			v->visit_bool(this);
+			v->visit(this);
 		}
 
 		bool value;
@@ -254,7 +256,7 @@ namespace xcom
 		}
 
 		virtual void accept(property_visitor *v) {
-			v->visit_float(this);
+			v->visit(this);
 		}
 
 		float value;
@@ -272,25 +274,20 @@ namespace xcom
 		virtual size_t size() const;
 
 		virtual void accept(property_visitor *v) {
-			v->visit_string(this);
+			v->visit(this);
 		}
 
 		std::string str;
 	};
 
-	// A dynamic array property. Represents an Unreal dynamic array. They have a known array bound, but 
-	// it is impossible to unambiguously interpret the data within the array without knowing the actual type
-	// of data in the array. This is part of the UPK that contains the object type containing the array, but
-	// is not recorded in the save itself. Some heuristics are used to attempt to figure out roughly what's in
-	// the array, based on the total size of the array property and the array bound:
-	//
-	// 1) If the array bound does not evenly divide the total array size (e.g. the elements have different sizes)
-	//    it must be an array of structs or strings. We can determine which by checking if the element data contains
-	//    nested properties. If so, it is an array of structs, otherwise it is strings.
-	// 2) If the size of each element is 4 bytes, it's an array of either ints or floats.
-	// 3) If the size of each element is 1 byte, it's an array of bools.
-	// 4) If the size of each element is 8 bytes, it's an array of objects and the elements are actor indices that can be
-	//    looked up in the actor table.
+	// A dynamic array property. Represents an Unreal dynamic array. This type is used for "raw" arrays where
+	// we have not correctly determined the contents of the array. The saved array format doesn't explicitly 
+	// say what the type of objects are in a dynamic array, this information is read from the UPK file containing
+	// the class that defines this checkpoint. However, we can use some heuristics to guess the broad kind of
+	// object. One of the specific array property types will be used when we can determine it (object_array_property,
+	// number_array_property, struct_array_property). This type is used as a fallback if the heuristic fails, and it
+	// just treats the entire array contents as a big blob of binary data - we can't even necessarily determine where
+	// each element begins and ends inside the blob.
 	struct array_property : public property
 	{
 		array_property(const std::string& n, std::unique_ptr<unsigned char[]>&& a, int32_t dl, int32_t b) :
@@ -301,7 +298,7 @@ namespace xcom
 		}
 
 		virtual void accept(property_visitor *v) {
-			v->visit_array(this);
+			v->visit(this);
 		}
 
 		std::unique_ptr<unsigned char[]> data;
@@ -309,6 +306,8 @@ namespace xcom
 		int32_t data_length;
 	};
 
+	// A dynamic array of some object (actor) type. Each element is an index to an actor
+	// in the actor table.
 	struct object_array_property : public property
 	{
 		object_array_property(const std::string& n, std::vector<int32_t> objs) :
@@ -319,12 +318,16 @@ namespace xcom
 		}
 
 		virtual void accept(property_visitor* v) {
-			v->visit_object_array(this);
+			v->visit(this);
 		}
 
 		std::vector<int32_t> elements;
 	};
 
+	// A number array property. This can be either an array of ints or an array of floats,
+	// and it's not in general possible to determine which without looking at the UPK checkpoint
+	// definition. The elements are represented as an array of integers, but these may actually
+	// hold floating point values.
 	struct number_array_property : public property
 	{
 		number_array_property(const std::string& n, std::vector<int32_t> objs) :
@@ -335,12 +338,19 @@ namespace xcom
 		}
 
 		virtual void accept(property_visitor *v) {
-			v->visit_number_array(this);
+			v->visit(this);
 		}
 
 		std::vector<int32_t> elements;
 	};
 
+	// A struct array property. Each element is a struct instance and all elements share the
+	// same struct type but the actual name of the struct is unknown (it can be found in the UPK).
+	//
+	// Note that structs listed here may have default properties, in which case some properties may
+	// be missing for some elements. It's impossible to determine the full list of properties in 
+	// a struct array without looking in the UPK to get the full struct definition, but a good approximation
+	// is the set union of all properties across all the elements in the array.
 	struct struct_array_property : public property
 	{
 		struct_array_property(const std::string &n, std::vector<property_list> props) :
@@ -360,7 +370,7 @@ namespace xcom
 		}
 
 		virtual void accept(property_visitor *v) {
-			v->visit_struct_array(this);
+			v->visit(this);
 		}
 
 		std::vector<property_list> elements;
@@ -386,7 +396,7 @@ namespace xcom
 		}
 
 		void accept(property_visitor *v) {
-			v->visit_enum(this);
+			v->visit(this);
 		}
 
 		std::string enum_type;
@@ -407,7 +417,7 @@ namespace xcom
 		virtual size_t full_size() const;
 
 		void accept(property_visitor *v) {
-			v->visit_struct(this);
+			v->visit(this);
 		}
 
 		std::string struct_name;
@@ -441,7 +451,7 @@ namespace xcom
 		}
 
 		void accept(property_visitor *v) {
-			v->visit_static_array(this);
+			v->visit(this);
 		}
 
 		property_list properties;
@@ -544,6 +554,26 @@ namespace xcom
 
 	using checkpoint_chunk_table = std::vector<checkpoint_chunk>;
 
+	// An xcom save. The save consists of three main parts:
+	// 1) The header. This part is always uncompressed (parts 2 and 3 are stored
+	// compressed in the file) and contains basic information about the save:
+	// the save numbers and identifiers, crc values to detect save corruption,
+	// and miscellaneous flags (ironman, autosave, tactical save).
+	//
+	// 2) The global actor table. This is a bit list of actor identifiers as strings
+	// in the format GameName.Class_Instance. The game name is always "Command1" for
+	// strategy level saves (the name of the strategy "map"). The Class name is the
+	// name of the actor class (e.g. XGStrategySoldier) and the Instance is an integer
+	// uniquely identifying a particular instance of that class. E.g. Command1.XGStrategySoldier_3
+	// is the 4th (0 is the first) soldier instance.
+	//
+	// 3) The checkpoint chunk table. This is a list of several "chunks". It's not really
+	// known at this point what these chunks represent, but they do contain all main information
+	// in the saved game. I have a suspicion that I haven't fully looked into that these are
+	// corresponding to the "ActorClassesToRecord" and "ActorClassesToDestroy" lists in XComGame.Checkpoint
+	// but I haven't confirmed this yet. Note that each checkpoint "chunk" has its own actor table
+	// in addition to the global actor table in 2. I also haven't fully explored how these tables are
+	// different.
 	struct saved_game
 	{
 		header header;

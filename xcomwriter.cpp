@@ -127,28 +127,28 @@ namespace xcom
 	{
 		property_writer_visitor(writer* writer) : writer_(writer) {}
 
-		virtual void visit_int(int_property* prop) override
+		virtual void visit(int_property* prop) override
 		{
 			writer_->write_int(prop->value);
 		}
 
-		virtual void visit_float(float_property *prop) override
+		virtual void visit(float_property *prop) override
 		{
 			writer_->write_float(prop->value);
 		}
 
-		virtual void visit_bool(bool_property *prop) override
+		virtual void visit(bool_property *prop) override
 		{
 			writer_->ensure(1);
 			*writer_->ptr_++ = prop->value;
 		}
 
-		virtual void visit_string(string_property *prop) override
+		virtual void visit(string_property *prop) override
 		{
 			writer_->write_string(prop->str);
 		}
 
-		virtual void visit_object(object_property *prop) override
+		virtual void visit(object_property *prop) override
 		{
 			if (prop->actor == 0xffffffff) {
 				writer_->write_int(prop->actor);
@@ -160,7 +160,7 @@ namespace xcom
 			}
 		}
 
-		virtual void visit_enum(enum_property *prop) override
+		virtual void visit(enum_property *prop) override
 		{
 			writer_->write_string(prop->enum_type);
 			writer_->write_int(0);
@@ -168,7 +168,7 @@ namespace xcom
 			writer_->write_int(prop->extra_value);
 		}
 
-		virtual void visit_struct(struct_property *prop) override
+		virtual void visit(struct_property *prop) override
 		{
 			writer_->write_string(prop->struct_name);
 			writer_->write_int(0);
@@ -184,14 +184,14 @@ namespace xcom
 			}
 		}
 
-		virtual void visit_array(array_property *prop) override
+		virtual void visit(array_property *prop) override
 		{
 			writer_->write_int(prop->array_bound);
 			size_t data_length = prop->size() - 4;
 			writer_->write_raw(prop->data.get(), data_length);
 		}
 
-		virtual void visit_object_array(object_array_property *prop) override
+		virtual void visit(object_array_property *prop) override
 		{
 			writer_->write_int(prop->elements.size());
 			for (size_t i = 0; i < prop->elements.size(); ++i) {
@@ -206,7 +206,7 @@ namespace xcom
 			}
 		}
 
-		virtual void visit_number_array(number_array_property *prop) override
+		virtual void visit(number_array_property *prop) override
 		{
 			writer_->write_int(prop->elements.size());
 			for (size_t i = 0; i < prop->elements.size(); ++i) {
@@ -214,7 +214,7 @@ namespace xcom
 			}
 		}
 
-		virtual void visit_struct_array(struct_array_property *prop) override
+		virtual void visit(struct_array_property *prop) override
 		{
 			writer_->write_int(prop->elements.size());
 			std::for_each(prop->elements.begin(), prop->elements.end(), [this](const property_list &pl) {
@@ -228,7 +228,7 @@ namespace xcom
 			});
 		}
 
-		virtual void visit_static_array(static_array_property *) override
+		virtual void visit(static_array_property *) override
 		{
 			// This shouldn't happen: static arrays need special handling and can't be written normally as they don't
 			// really exist in the save format.
@@ -400,6 +400,7 @@ namespace xcom
 		// Write the checkpoint chunks
 		write_checkpoint_chunks(save_.checkpoints);
 
+#if 0
 		// Write the raw data file
 		FILE *out_file = fopen("newoutput.dat", "wb");
 		if (out_file == nullptr) {
@@ -407,7 +408,7 @@ namespace xcom
 		}
 		fwrite(start_.get(), 1, offset(), out_file);
 		fclose(out_file);
-
+#endif
 		buffer<unsigned char> b = compress();
 
 		// Reset the internal buffer to the compressed data to write the header

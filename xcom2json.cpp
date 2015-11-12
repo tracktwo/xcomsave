@@ -204,7 +204,7 @@ struct json_property_visitor : public property_visitor
 		w.write_string("kind", prop->kind_string(), omit_newline);
 	}
 
-	virtual void visit_int(int_property *prop) override
+	virtual void visit(int_property *prop) override
 	{
 		w.begin_object(true);
 		write_common(prop, true);
@@ -212,7 +212,7 @@ struct json_property_visitor : public property_visitor
 		w.end_object();
 	}
 
-	virtual void visit_float(float_property *prop) override
+	virtual void visit(float_property *prop) override
 	{
 		w.begin_object(true);
 		write_common(prop, true);
@@ -220,7 +220,7 @@ struct json_property_visitor : public property_visitor
 		w.end_object();
 	}
 
-	virtual void visit_bool(bool_property *prop) override
+	virtual void visit(bool_property *prop) override
 	{
 		w.begin_object(true);
 		write_common(prop, true);
@@ -228,7 +228,7 @@ struct json_property_visitor : public property_visitor
 		w.end_object();
 	}
 
-	virtual void visit_string(string_property *prop) override
+	virtual void visit(string_property *prop) override
 	{
 		w.begin_object(true);
 		write_common(prop, true);
@@ -236,7 +236,7 @@ struct json_property_visitor : public property_visitor
 		w.end_object();
 	}
 
-	virtual void visit_object(object_property *prop) override
+	virtual void visit(object_property *prop) override
 	{
 		w.begin_object(true);
 		write_common(prop, true);
@@ -244,7 +244,7 @@ struct json_property_visitor : public property_visitor
 		w.end_object();
 	}
 
-	virtual void visit_enum(enum_property *prop) override
+	virtual void visit(enum_property *prop) override
 	{
 		w.begin_object();
 		write_common(prop);
@@ -254,7 +254,7 @@ struct json_property_visitor : public property_visitor
 		w.end_object();
 	}
 
-	virtual void visit_struct(struct_property *prop) override
+	virtual void visit(struct_property *prop) override
 	{
 		w.begin_object();
 		write_common(prop);
@@ -280,7 +280,7 @@ struct json_property_visitor : public property_visitor
 		w.end_object();
 	}
 
-	virtual void visit_array(array_property *prop) override
+	virtual void visit(array_property *prop) override
 	{
 		w.begin_object();
 		write_common(prop);
@@ -291,7 +291,7 @@ struct json_property_visitor : public property_visitor
 		w.end_object();
 	}
 
-	virtual void visit_object_array(object_array_property *prop) override
+	virtual void visit(object_array_property *prop) override
 	{
 		w.begin_object();
 		write_common(prop);
@@ -304,7 +304,7 @@ struct json_property_visitor : public property_visitor
 		w.end_object();
 	}
 
-	virtual void visit_number_array(number_array_property *prop) override
+	virtual void visit(number_array_property *prop) override
 	{
 		w.begin_object();
 		write_common(prop);
@@ -317,7 +317,7 @@ struct json_property_visitor : public property_visitor
 		w.end_object();
 	}
 
-	virtual void visit_struct_array(struct_array_property *prop) override
+	virtual void visit(struct_array_property *prop) override
 	{
 		w.begin_object();
 		write_common(prop);
@@ -335,7 +335,7 @@ struct json_property_visitor : public property_visitor
 		w.end_object();
 	}
 
-	virtual void visit_static_array(static_array_property *prop) override
+	virtual void visit(static_array_property *prop) override
 	{
 		w.begin_object();
 		write_common(prop);
