@@ -25,6 +25,8 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include <string>
 #include <memory>
 #include <cassert>
+#include <cstdlib>
+#include <cstring>
 
 namespace xcom
 {
@@ -96,13 +98,13 @@ namespace xcom
 		uint32_t computed_hdr_crc = util::crc32b(start_.get(), hdr_size);
 		if (hdr_crc != computed_hdr_crc)
 		{
-			throw std::exception("CRC mismatch in header. Bad save?");
+			throw std::runtime_error("CRC mismatch in header. Bad save?");
 		}
 
 		uint32_t computed_compressed_crc = util::crc32b(start_.get() + 1024, length_ - 1024);
 		if (computed_compressed_crc != compressed_crc)
 		{
-			throw std::exception("CRC mismatch in compressed data. Bad save?");
+			throw std::runtime_error("CRC mismatch in compressed data. Bad save?");
 		}
 		return hdr;
 	}
@@ -514,7 +516,7 @@ namespace xcom
 	saved_game reader::save_data()
 	{
 		saved_game save;
-		save.header = read_header();
+		save.hdr = read_header();
 
 		size_t uncompressed_length = uncompressed_size();
 		if (uncompressed_length < 0) {

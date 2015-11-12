@@ -23,8 +23,9 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include <memory>
 #include <cassert>
 #include <sstream>
-#include "xcom.h"
 #include <stdarg.h>
+
+#include "xcom.h"
 
 namespace xcom
 {
@@ -115,7 +116,7 @@ namespace xcom
 
 			std::string str = "Unexpected hex character: ";
 			str.append(1, c);
-			throw std::exception(str.c_str());
+			throw std::runtime_error(str.c_str());
 		}
 
 		std::string to_hex(const unsigned char *data, size_t length)
@@ -214,7 +215,7 @@ namespace xcom
 			std::string s = "Invalid property kind: ";
 			s += static_cast<int>(kind);
 			s += "\n";
-			throw std::exception(s.c_str());
+			throw std::runtime_error(s.c_str());
 		}
 	}
 
@@ -280,7 +281,7 @@ namespace xcom
 		return std::make_tuple(package, cls, instance + 1);
 	}
 
-	format_exception::format_exception(ptrdiff_t offset, const char *msg, ...)
+	format_exception::format_exception(std::ptrdiff_t offset, const char *msg, ...)
 	{
 		va_list args;
 		va_start(args, msg);

@@ -21,6 +21,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include "minilzo.h"
 #include "xslib_internal.h"
 #include <cassert>
+#include <cstring>
 #include <tuple>
 
 namespace xcom
@@ -232,7 +233,7 @@ namespace xcom
 		{
 			// This shouldn't happen: static arrays need special handling and can't be written normally as they don't
 			// really exist in the save format.
-			throw std::exception("Attempted to write a static array property\n");
+			throw std::runtime_error("Attempted to write a static array property\n");
 		}
 
 	private:
@@ -404,7 +405,7 @@ namespace xcom
 		// Write the raw data file
 		FILE *out_file = fopen("newoutput.dat", "wb");
 		if (out_file == nullptr) {
-			throw std::exception("Failed to open output file\n");
+			throw std::runtime_error("Failed to open output file\n");
 		}
 		fwrite(start_.get(), 1, offset(), out_file);
 		fclose(out_file);
@@ -416,7 +417,7 @@ namespace xcom
 		ptr_ = start_.get();
 		length_ = b.length;
 
-		write_header(save_.header);
+		write_header(save_.hdr);
 
 		// Move the save data back into the buffer to return
 		b.buf = std::move(start_);

@@ -1,10 +1,19 @@
 cmake_minimum_required (VERSION 2.6)
+
 project (xcomsave)
 set (xcomsave_sources minilzo-2.09/minilzo.c xcomreader.cpp xcomwriter.cpp util.cpp)
 set (xcomsave_headers xcomreader.h xcomwriter.h xcom.h util.h xslib_internal.h)
 
-include_directories("minilzo-2.09" "json11")
+# Linux-specific configuration
+if (UNIX)
+set (CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} -std=c++14)
+endif (UNIX)
+
+if (WIN32)
 add_definitions(-D_CRT_SECURE_NO_WARNINGS -D_CRT_NONSTDC_NO_DEPRECATE)
+endif (WIN32)
+
+include_directories("minilzo-2.09" "json11")
 add_library (xcomsave ${xcomsave_sources} ${xcomsave_headers})
 set_target_properties (xcomsave PROPERTIES LINKER_LANGUAGE CXX)
 

@@ -41,7 +41,7 @@ namespace xcom
 		saved_game save_data();
 
 	private:
-		ptrdiff_t offset() const {
+		std::ptrdiff_t offset() const {
 			return ptr_ - start_.get();
 		}
 

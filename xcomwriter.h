@@ -44,7 +44,7 @@ namespace xcom
 		friend property_writer_visitor;
 
 	private:
-		ptrdiff_t offset() const {
+		std::ptrdiff_t offset() const {
 			return ptr_ - start_.get();
 		}
 
