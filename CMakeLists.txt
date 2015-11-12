@@ -2,7 +2,7 @@ cmake_minimum_required (VERSION 2.6)
 
 project (xcomsave)
 set (xcomsave_sources minilzo-2.09/minilzo.c xcomreader.cpp xcomwriter.cpp util.cpp)
-set (xcomsave_headers xcomreader.h xcomwriter.h xcom.h util.h xslib_internal.h)
+set (xcomsave_headers xcomreader.h xcomwriter.h xcom.h util.h)
 
 # Linux-specific configuration
 if (UNIX)

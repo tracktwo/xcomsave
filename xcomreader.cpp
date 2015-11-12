@@ -20,7 +20,6 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include "minilzo.h"
 #include "xcomreader.h"
 #include "util.h"
-#include "xslib_internal.h"
 
 #include <string>
 #include <memory>

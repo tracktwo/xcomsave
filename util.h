@@ -1,20 +1,20 @@
 /*
-	XCom EW Saved Game Reader
-	Copyright(C) 2015
+    XCom EW Saved Game Reader
+    Copyright(C) 2015
 
-	This program is free software; you can redistribute it and / or modify
-	it under the terms of the GNU General Public License as published by
-	the Free Software Foundation; either version 2 of the License, or
-	(at your option) any later version.
+    This program is free software; you can redistribute it and / or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation; either version 2 of the License, or
+    (at your option) any later version.
 
-	This program is distributed in the hope that it will be useful,
-	but WITHOUT ANY WARRANTY; without even the implied warranty of
-	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
-	GNU General Public License for more details.
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+    GNU General Public License for more details.
 
-	You should have received a copy of the GNU General Public License along
-	with this program; if not, write to the Free Software Foundation, Inc.,
-	51 Franklin Street, Fifth Floor, Boston, MA 02110 - 1301 USA.
+    You should have received a copy of the GNU General Public License along
+    with this program; if not, write to the Free Software Foundation, Inc.,
+    51 Franklin Street, Fifth Floor, Boston, MA 02110 - 1301 USA.
 */
 #ifndef UTIL_H
 #define UTIL_H
@@ -29,19 +29,22 @@
 
 namespace xcom
 {
-	namespace util
-	{
-		unsigned int crc32b(const unsigned char *message, long len);
+    // The magic number that occurs at the begining of each compressed chunk.
+    static const int UPK_Magic = 0x9e2a83c1;
 
-		std::string iso8859_1_to_utf8(const std::string& in);
-		std::string utf8_to_iso8859_1(const std::string& in);
+    namespace util
+    {
+        unsigned int crc32b(const unsigned char *message, long len);
 
-		std::string to_hex(const unsigned char *data, size_t dataLen);
-		std::unique_ptr<unsigned char[]> from_hex(const std::string& str);
-	}
+        std::string iso8859_1_to_utf8(const std::string& in);
+        std::string utf8_to_iso8859_1(const std::string& in);
 
-	std::string build_actor_name(const std::string& package, const std::string& cls, int instance);
-	std::tuple<std::string, std::string, int> decompose_actor_name(const std::string& actorName);
-	std::string property_kind_to_string(property::kind_t kind);
+        std::string to_hex(const unsigned char *data, size_t dataLen);
+        std::unique_ptr<unsigned char[]> from_hex(const std::string& str);
+    }
+
+    std::string build_actor_name(const std::string& package, const std::string& cls, int instance);
+    std::tuple<std::string, std::string, int> decompose_actor_name(const std::string& actorName);
+    std::string property_kind_to_string(property::kind_t kind);
 }
 #endif // UTIL_H
