@@ -53,7 +53,8 @@ namespace xcom
         else if (s.is_wide) {
             std::u16string conv16 = util::utf8_to_utf16(s.str);
             ensure(conv16.length() * 2 + 6);
-            // Write the length as a negative value, including the terminating null character
+            // Write the length as a negative value, including the terminating
+            // null character
             write_int((conv16.length() + 1) * -1);
             // Copy 2*length bytes of string data
             memcpy(ptr_, conv16.c_str(), conv16.length() * 2);
@@ -243,21 +244,24 @@ namespace xcom
         virtual void visit(struct_array_property *prop) override
         {
             writer_->write_int(prop->elements.size());
-            std::for_each(prop->elements.begin(), prop->elements.end(), [this](const property_list &pl) {
-                std::for_each(pl.begin(), pl.end(), [this](const property_ptr& p) {
-                    writer_->write_property(p, 0);
-                });
+            std::for_each(prop->elements.begin(), prop->elements.end(), 
+                [this](const property_list &pl) {
+                    std::for_each(pl.begin(), pl.end(), 
+                        [this](const property_ptr& p) {
+                            writer_->write_property(p, 0);
+                        });
 
-                // Write the "None" to indicate the end of this struct.
-                writer_->write_string("None");
-                writer_->write_int(0);
-            });
+                    // Write the "None" to indicate the end of this struct.
+                    writer_->write_string("None");
+                    writer_->write_int(0);
+                });
         }
 
         virtual void visit(static_array_property *) override
         {
-            // This shouldn't happen: static arrays need special handling and can't be written normally as they don't
-            // really exist in the save format.
+            // This shouldn't happen: static arrays need special handling and
+            // can't be written normally as they don't really exist in the save
+            // format.
             throw std::runtime_error("Attempted to write a static array property\n");
         }
 
@@ -267,9 +271,12 @@ namespace xcom
 
     void writer::write_property(const property_ptr& prop, int32_t array_index)
     {
-        // If this is a static array property we need to write only the contained properties, not the fake static array property created to contain it.
+        // If this is a static array property we need to write only the
+        // contained properties, not the fake static array property created to
+        // contain it.
         if (prop->kind == property::kind_t::static_array_property) {
-            static_array_property* static_array = dynamic_cast<static_array_property*>(prop.get());
+            static_array_property* static_array = 
+                dynamic_cast<static_array_property*>(prop.get());
             for (unsigned int idx = 0; idx < static_array->properties.size(); ++idx) {
                 write_property(static_array->properties[idx], idx);
             }
@@ -301,10 +308,12 @@ namespace xcom
         write_int(chk.rotator[2]);
         write_string(chk.class_name);
         size_t total_property_size = 0;
-        std::for_each(chk.properties.begin(), chk.properties.end(), [&total_property_size](const property_ptr& prop) {
-            total_property_size += prop->full_size();
-        });
-        total_property_size += 9 + 4; // length of trailing "None" to terminate the list + the unknown int.
+        std::for_each(chk.properties.begin(), chk.properties.end(), 
+            [&total_property_size](const property_ptr& prop) {
+                total_property_size += prop->full_size();
+            });
+        // length of trailing "None" to terminate the list + the unknown int.
+        total_property_size += 9 + 4; 
         total_property_size += chk.pad_size;
         write_int(total_property_size);
         for (unsigned int i = 0; i < chk.properties.size(); ++i) {
@@ -354,9 +363,9 @@ namespace xcom
     buffer<unsigned char> writer::compress()
     {
         int totalBufSize = offset();
-        // Allocate a new buffer to hold the compressed data. Just allocate
-        // as much as the uncompressed buffer since we don't know how big
-        // it will be, but it'll presumably be smaller.
+        // Allocate a new buffer to hold the compressed data. Just allocate as
+        // much as the uncompressed buffer since we don't know how big it will
+        // be, but it'll presumably be smaller.
         buffer<unsigned char> b;
         b.buf = std::make_unique<unsigned char[]>(totalBufSize);
 
@@ -381,7 +390,8 @@ namespace xcom
             int uncompressed_size = (bytes_left < chunk_size) ? bytes_left : chunk_size;
             unsigned long bytes_compressed = bytes_left - 24;
             // Compress the chunk
-            int ret = lzo1x_1_compress(buf_ptr, uncompressed_size, compressed_ptr + 24, &bytes_compressed, wrkMem.get());
+            int ret = lzo1x_1_compress(buf_ptr, uncompressed_size, 
+                        compressed_ptr + 24, &bytes_compressed, wrkMem.get());
             if (ret != LZO_E_OK) {
                 fprintf(stderr, "Error compressing data: %d", ret);
             }

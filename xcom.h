@@ -335,8 +335,12 @@ namespace xcom
     // begins and ends inside the blob.
     struct array_property : public property
     {
-        array_property(const std::string& n, std::unique_ptr<unsigned char[]>&& a, int32_t dl, int32_t b) :
-            property(n, kind_t::array_property), data(std::move(a)), data_length(dl), array_bound(b) {}
+        array_property(const std::string& n, 
+            std::unique_ptr<unsigned char[]>&& a, int32_t dl, int32_t b) :
+                property(n, kind_t::array_property), 
+                data(std::move(a)), 
+                data_length(dl), 
+                array_bound(b) {}
 
         virtual size_t size() const {
             return 4 + data_length;
@@ -408,11 +412,13 @@ namespace xcom
             // A struct array has the array bound plus 9 bytes per element for the terminating "None" string 
             // plus 4 bytes per element for the unknown 0 integer that follows the none.
             size_t total = 4 + 13 * elements.size();
-            std::for_each(elements.begin(), elements.end(), [&total](const property_list &pl) {
-                std::for_each(pl.begin(), pl.end(), [&total](const property_ptr& prop) {
-                    total += prop->full_size();
+            std::for_each(elements.begin(), elements.end(), 
+                [&total](const property_list &pl) {
+                    std::for_each(pl.begin(), pl.end(), 
+                        [&total](const property_ptr& prop) {
+                            total += prop->full_size();
+                        });
                 });
-            });
 
             return total;
         }
@@ -451,8 +457,10 @@ namespace xcom
     // with the same name has an extra value larger than the previous.
     struct enum_property : public property
     {
-        enum_property(const std::string& n, const std::string &et, const std::string &ev, int32_t i) :
-            property(n, kind_t::enum_property), enum_type(et), enum_value(ev), extra_value(i) {}
+        enum_property(const std::string& n, const std::string &et, 
+                        const std::string &ev, int32_t i) :
+            property(n, kind_t::enum_property), enum_type(et), 
+            enum_value(ev), extra_value(i) {}
 
         size_t size() const {
             // size does not include the size of the enum type string
@@ -477,11 +485,21 @@ namespace xcom
     // A struct property. Contains a nested list of properties for the struct elements.
     struct struct_property : public property
     {
-        struct_property(const std::string &n, const std::string &sn, property_list &&props) :
-            property(n, kind_t::struct_property), struct_name(sn), properties(std::move(props)), native_data(), native_data_length(0) {}
+        struct_property(const std::string &n, const std::string &sn, 
+            property_list &&props) :
+                property(n, kind_t::struct_property), 
+                struct_name(sn), 
+                properties(std::move(props)),
+                native_data(), 
+                native_data_length(0) {}
 
-        struct_property(const std::string& n, const std::string &sn, std::unique_ptr<unsigned char[]> &&nd, size_t l) :
-            property(n, kind_t::struct_property), struct_name(sn), properties{}, native_data(std::move(nd)), native_data_length(l) {}
+        struct_property(const std::string& n, const std::string &sn, 
+            std::unique_ptr<unsigned char[]> &&nd, size_t l) :
+                property(n, kind_t::struct_property), 
+                struct_name(sn), 
+                properties{}, 
+                native_data(std::move(nd)), 
+                native_data_length(l) {}
 
         size_t size() const;
         virtual size_t full_size() const;
@@ -508,16 +526,18 @@ namespace xcom
 
         virtual size_t size() const {
             size_t total = 0;
-            std::for_each(properties.begin(), properties.end(), [&total](const property_ptr &prop) {
-                total += prop->size();
-            });
+            std::for_each(properties.begin(), properties.end(), 
+                [&total](const property_ptr &prop) {
+                    total += prop->size();
+                });
             return total;
         }
 
         virtual size_t full_size() const {
             size_t total = 0;
-            std::for_each(properties.begin(), properties.end(), [&total](const property_ptr &prop) {
-                total += prop->full_size();
+            std::for_each(properties.begin(), properties.end(), 
+                [&total](const property_ptr &prop) {
+                    total += prop->full_size();
             });
             return total;
         }

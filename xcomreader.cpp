@@ -77,11 +77,14 @@ namespace xcom
             const char *str = reinterpret_cast<const char *>(ptr_);
             size_t actual_length = strlen(str);
 
-            // Double check the length matches what we read from the file, considering the trailing null is counted in the length 
-            // stored in the file.
+            // Double check the length matches what we read from the file,
+            // considering the trailing null is counted in the length stored in
+            // the file.
             if (actual_length != (length - 1))
             {
-                fprintf(stderr, "Error: String mismatch at offset %d. Expected length %d but got %d\n", ptr_ - start_.get(), length, actual_length);
+                fprintf(stderr, 
+                    "Error: String mismatch at offset %d. Expected length %d but got %d\n",
+                    ptr_ - start_.get(), length, actual_length);
                 return {"<error>", false};
             }
             ptr_ += length;
@@ -94,7 +97,9 @@ namespace xcom
         header hdr;
         hdr.version = read_int();
         if (hdr.version != save_version) {
-            fprintf(stderr, "Error: Data does not appear to be an xcom save: expected file version %d but got %d\n", save_version, hdr.version);
+            fprintf(stderr, 
+                "Error: Data does not appear to be an xcom save: expected file version %d but got %d\n", 
+                save_version, hdr.version);
             return{ 0 };
         }
         hdr.uncompressed_size = read_int();
@@ -117,13 +122,14 @@ namespace xcom
         uint32_t computed_hdr_crc = util::crc32b(start_.get(), hdr_size);
         if (hdr_crc != computed_hdr_crc)
         {
-            throw std::runtime_error("CRC mismatch in header. Bad save?");
+            throw std::runtime_error("CRC mismatch in header. Bad save?\n");
         }
 
-        uint32_t computed_compressed_crc = util::crc32b(start_.get() + 1024, length_ - 1024);
+        uint32_t computed_compressed_crc = util::crc32b(start_.get() + 1024, 
+                length_ - 1024);
         if (computed_compressed_crc != compressed_crc)
         {
-            throw std::runtime_error("CRC mismatch in compressed data. Bad save?");
+            throw std::runtime_error("CRC mismatch in compressed data. Bad save?\n");
         }
         return hdr;
     }
@@ -133,20 +139,22 @@ namespace xcom
         actor_table actors;
         int32_t actor_count = read_int();
 
-        // We expect all entries to be of the form <package> <0> <actor> <instance>, or two entries
-        // per real actor.
+        // We expect all entries to be of the form <package> <0> <actor>
+        // <instance>, or two entries per real actor.
         assert(actor_count % 2 == 0);
 
         for (int i = 0; i < actor_count; i += 2) {
             std::string actor_name = read_string();
             int32_t instance = read_int();
             if (instance == 0) {
-                throw format_exception(offset(), "Malformed actor table entry: expected a non-zero instance\n");
+                throw format_exception(offset(), 
+                        "Malformed actor table entry: expected a non-zero instance\n");
             }
             std::string package = read_string();
             int32_t sentinel = read_int();
             if (sentinel != 0) {
-                throw format_exception(offset(), "Malformed actor table entry: missing 0 instance\n");
+                throw format_exception(offset(), 
+                        "Malformed actor table entry: missing 0 instance\n");
             }
             actors.push_back(build_actor_name(package, actor_name, instance));
         }
@@ -159,31 +167,40 @@ namespace xcom
         std::string struct_name = read_string();
         int32_t inner_unknown = read_int();
         if (inner_unknown != 0) {
-            throw format_exception(offset(), "Read non-zero prop unknown value in struct property: %x\n", inner_unknown);
+            throw format_exception(offset(), 
+                    "Read non-zero prop unknown value in struct property: %x\n", 
+                    inner_unknown);
         }
 
         // Special case certain structs
         if (struct_name.compare("Vector2D") == 0) {
-            std::unique_ptr<unsigned char[]> nativeData = std::make_unique<unsigned char[]>(8);
+            std::unique_ptr<unsigned char[]> nativeData = 
+                    std::make_unique<unsigned char[]>(8);
             memcpy(nativeData.get(), ptr_, 8);
             ptr_ += 8;
-            return std::make_unique<struct_property>(name, struct_name, std::move(nativeData), 8);
+            return std::make_unique<struct_property>(name, struct_name,
+                    std::move(nativeData), 8);
         }
         else if (struct_name.compare("Vector") == 0) {
-            std::unique_ptr<unsigned char[]> nativeData = std::make_unique<unsigned char[]>(12);
+            std::unique_ptr<unsigned char[]> nativeData = 
+                    std::make_unique<unsigned char[]>(12);
             memcpy(nativeData.get(), ptr_, 12);
             ptr_ += 12;
-            return std::make_unique<struct_property>(name, struct_name, std::move(nativeData), 12);
+            return std::make_unique<struct_property>(name, struct_name, 
+                    std::move(nativeData), 12);
         }
         else {
             property_list structProps = read_properties();
-            return std::make_unique<struct_property>(name, struct_name, std::move(structProps));
+            return std::make_unique<struct_property>(name, struct_name, 
+                    std::move(structProps));
         }
     }
 
-    // Determine if this is a struct or string property. Returns struct_array_property if it's a struct
-    // array, string_array_property if it's a string/enum array, or last_array_property if it's neither.
-    static property::kind_t is_struct_or_string_property(const unsigned char *ptr, uint32_t array_data_size)
+    // Determine if this is a struct or string property. Returns
+    // struct_array_property if it's a struct array, string_array_property if
+    // it's a string/enum array, or last_array_property if it's neither.
+    static property::kind_t is_struct_or_string_property(const unsigned char *ptr, 
+            uint32_t array_data_size)
     {
         // Sniff the first part of the array data to see if it looks like a string.
         int32_t str_length = *reinterpret_cast<const int*>(ptr);
@@ -192,9 +209,9 @@ namespace xcom
             if (str[str_length-1] == 0 && strlen(str) == (str_length -1))
             {
                 // Ok, looks like a name string. Distinguish between a struct
-                // array and a enum array by looking at the next string. if it's a property
-                // kind, then we have a property list and this is a struct. If it's not, then
-                // we must have an enum array.
+                // array and a enum array by looking at the next string. if
+                // it's a property kind, then we have a property list and this
+                // is a struct. If it's not, then we must have an enum array.
 
                 // Skip over the string length, string data, and zero int.
                 ptr += 4 + str_length + 4;
@@ -220,7 +237,8 @@ namespace xcom
     }
 
 
-    property_ptr reader::make_array_property(const std::string &name, int32_t property_size)
+    property_ptr reader::make_array_property(const std::string &name, 
+            int32_t property_size)
     {
         int32_t array_bound = read_int();
         std::unique_ptr<unsigned char[]> array_data;
@@ -236,7 +254,8 @@ namespace xcom
                         elements.push_back(actor1);
                     }
                     else if (actor1 != (actor2 + 1)) {
-                        throw format_exception(offset(), "Assertion failed: expected related actor numbers in object array\n");
+                        throw format_exception(offset(), 
+                            "Assertion failed: expected related actor numbers in object array\n");
                     }
                     else {
                         elements.push_back(actor1 / 2);
@@ -261,7 +280,8 @@ namespace xcom
                         elements.push_back(read_properties());
                     }
 
-                    return std::make_unique<struct_array_property>(name, std::move(elements));
+                    return std::make_unique<struct_array_property>(name,
+                            std::move(elements));
                 }
 #if 0
                 else if (kind == property::kind_t::string_array_property) {
@@ -285,7 +305,8 @@ namespace xcom
                 }
             }
         }
-        return std::make_unique<array_property>(name, std::move(array_data), array_data_size, array_bound);
+        return std::make_unique<array_property>(name, std::move(array_data), 
+                array_data_size, array_bound);
     }
 
     property_list reader::read_properties()
@@ -296,7 +317,8 @@ namespace xcom
             std::string name = read_string();
             int32_t unknown1 = read_int();
             if (unknown1 != 0) {
-                throw format_exception(offset(), "Read non-zero property unknown value: %x\n", unknown1);
+                throw format_exception(offset(), 
+                        "Read non-zero property unknown value: %x\n", unknown1);
             }
 
             if (name.compare("None") == 0) {
@@ -305,7 +327,8 @@ namespace xcom
             std::string prop_type = read_string();
             int32_t unknown2 = read_int();
             if (unknown2 != 0) {
-                throw format_exception(offset(), "Read non-zero property unknown2 value: %x\n", unknown2);
+                throw format_exception(offset(), 
+                        "Read non-zero property unknown2 value: %x\n", unknown2);
             }
             int32_t prop_size = read_int();
             int32_t array_index = read_int();
@@ -316,10 +339,12 @@ namespace xcom
                 int32_t actor1 = read_int();
                 int32_t actor2 = read_int();
                 if (actor1 != -1 && actor1 != (actor2 + 1)) {
-                    throw format_exception(offset(), "Assertion failed: actor references in object property not related.\n");
+                    throw format_exception(offset(), 
+                            "Assertion failed: actor references in object property not related.\n");
                 }
 
-                prop = std::make_unique<object_property>(name, (actor1 == -1) ? actor1 : (actor1 / 2));
+                prop = std::make_unique<object_property>(name, 
+                        (actor1 == -1) ? actor1 : (actor1 / 2));
             }
             else if (prop_type.compare("IntProperty") == 0) {
                 assert(prop_size == 4);
@@ -330,11 +355,14 @@ namespace xcom
                 std::string enum_type = read_string();
                 int32_t inner_unknown = read_int();
                 if (inner_unknown != 0) {
-                    throw format_exception(offset(), "Read non-zero enum property unknown value: %x\n", inner_unknown);
+                    throw format_exception(offset(), 
+                            "Read non-zero enum property unknown value: %x\n", 
+                            inner_unknown);
                 }
                 std::string enum_val = read_string();
                 int32_t extra_val = read_int();
-                prop = std::make_unique<enum_property>(name, enum_type, enum_val, extra_val);
+                prop = std::make_unique<enum_property>(name, enum_type, 
+                        enum_val, extra_val);
             }
             else if (prop_type.compare("BoolProperty") == 0) {
                 assert(prop_size == 0);
@@ -357,7 +385,8 @@ namespace xcom
             }
             else
             {
-                throw format_exception(offset(), "Unknown property type %s\n", prop_type.c_str());
+                throw format_exception(offset(), 
+                        "Unknown property type %s\n", prop_type.c_str());
             }
 
             if (prop.get() != nullptr) {
@@ -367,12 +396,15 @@ namespace xcom
                 }
                 else {
                     if (properties.back()->name.compare(name) != 0) {
-                        throw format_exception(offset(), "Static array index found but doesn't match previous property\n");
+                        throw format_exception(offset(), 
+                                "Static array index found but doesn't match previous property\n");
                     }
 
                     if (properties.back()->kind == property::kind_t::static_array_property) {
-                        // We already have a static array. Sanity check the array index and add it
-                        static_array_property *static_array = static_cast<static_array_property*>(properties.back().get());
+                        // We already have a static array. Sanity check the
+                        // array index and add it
+                        static_array_property *static_array = 
+                                static_cast<static_array_property*>(properties.back().get());
                         assert(array_index == static_array->properties.size());
                         static_array->properties.push_back(std::move(prop));
                     }
@@ -385,7 +417,8 @@ namespace xcom
                         properties.pop_back();
 
                         // And replace it with a new static array
-                        std::unique_ptr<static_array_property> static_array = std::make_unique<static_array_property>(name);
+                        std::unique_ptr<static_array_property> static_array = 
+                                std::make_unique<static_array_property>(name);
                         static_array->properties.push_back(std::move(last_property));
                         static_array->properties.push_back(std::move(prop));
                         properties.push_back(std::move(static_array));
@@ -431,10 +464,13 @@ namespace xcom
                 }
             }
             size_t total_prop_size = 0;
-            std::for_each(chk.properties.begin(), chk.properties.end(), [&total_prop_size](const property_ptr& prop) {
-                total_prop_size += prop->full_size();
-            });
-            total_prop_size += 9 + 4; // length of trailing "None" to terminate the list + the unknown int.
+            std::for_each(chk.properties.begin(), chk.properties.end(), 
+                    [&total_prop_size](const property_ptr& prop) {
+                        total_prop_size += prop->full_size();
+                    });
+
+            // length of trailing "None" to terminate the list + the unknown int.
+            total_prop_size += 9 + 4; 
             assert((uint32_t)prop_length == (total_prop_size + chk.pad_size));
             chk.template_index = read_int();
             checkpoints.push_back(std::move(chk));
@@ -472,7 +508,8 @@ namespace xcom
             memcpy(entry.zeros, ptr_, 8);
             ptr_ += 8;
             if (memcmp(entry.zeros, all_zeros, 8) != 0) {
-                throw format_exception(offset(), "Expected all zeros in name table entry\n");
+                throw format_exception(offset(), 
+                        "Expected all zeros in name table entry\n");
                 return{};
             }
             entry.data_length = read_int();
@@ -495,7 +532,8 @@ namespace xcom
         {
             // Expect the magic header value 0x9e2a83c1 at the start of each chunk
             if (*(reinterpret_cast<const int32_t*>(p)) != UPK_Magic) {
-                throw format_exception(offset(), "Failed to find compressed chunk header\n");
+                throw format_exception(offset(), 
+                        "Failed to find compressed chunk header\n");
                 return -1;
             }
 
@@ -505,7 +543,8 @@ namespace xcom
             // Uncompressed size is at p+12
             uncompressed_size += *(reinterpret_cast<const uint32_t*>(p + 12));
 
-            // Skip to next chunk - 24 bytes of this chunk header + compressedSize bytes later.
+            // Skip to next chunk - 24 bytes of this chunk header +
+            // compressedSize bytes later.
             p += (compressed_size + 24);
         } while (static_cast<size_t>(p - start_.get()) < length_);
 
@@ -522,7 +561,8 @@ namespace xcom
         {
             // Expect the magic header value 0x9e2a83c1 at the start of each chunk
             if (*(reinterpret_cast<const uint32_t*>(p)) != UPK_Magic) {
-                throw format_exception(p - start_.get(), "Failed to find compressed chunk header\n");
+                throw format_exception(p - start_.get(), 
+                        "Failed to find compressed chunk header\n");
                 return;
             }
 
@@ -534,8 +574,10 @@ namespace xcom
 
             unsigned long decomp_size = uncompressed_size;
 
-            if (lzo1x_decompress_safe(p + 24, compressed_size, outp, &decomp_size, nullptr) != LZO_E_OK) {
-                throw format_exception(p - start_.get(), "LZO decompress of save data failed\n");
+            if (lzo1x_decompress_safe(p + 24, compressed_size, outp, 
+                                      &decomp_size, nullptr) != LZO_E_OK) {
+                throw format_exception(p - start_.get(), 
+                        "LZO decompress of save data failed\n");
                 return;
             }
 
@@ -548,7 +590,8 @@ namespace xcom
                 return;
             }
 
-            // Skip to next chunk - 24 bytes of this chunk header + compressedSize bytes later.
+            // Skip to next chunk - 24 bytes of this chunk header +
+            // compressedSize bytes later.
             p += (compressed_size + 24);
             outp += uncompressed_size;
         } while (static_cast<size_t>(p - start_.get()) < length_);
@@ -588,7 +631,8 @@ namespace xcom
             chunk.game_type = read_string();
             std::string none = read_string();
             if (none != "None") {
-                throw format_exception(offset(), "Failed to locate 'None' after actor table\n");
+                throw format_exception(offset(), 
+                        "Failed to locate 'None' after actor table\n");
                 return{};
             }
 
@@ -599,7 +643,8 @@ namespace xcom
             chunk.class_name = read_string();
             chunk.actors = read_actor_table();
             chunk.unknown_int3 = read_int();
-            actor_template_table actor_templates = read_actor_template_table(); // (only seems to be present for tactical saves?)
+            // (only seems to be present for tactical saves?)
+            actor_template_table actor_templates = read_actor_template_table(); 
             assert(actor_templates.size() == 0);
             chunk.display_name = read_string(); //unknown (game name)
             chunk.map_name = read_string(); //unknown (map name)
