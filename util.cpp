@@ -213,16 +213,18 @@ namespace xcom
             int encoded_size = MultiByteToWideChar(CP_UTF8, 0, in.c_str(), -1, 
                     nullptr, 0);
             std::unique_ptr<char16_t[]> buf = std::make_unique<char16_t[]>(encoded_size);
-            MultiByteToWideChar(CP_UTF8, 0, in.c_str(), -1, buf.get(), encoded_size);
-            return std::wstring{ buf.get() };
+            LPWSTR out_buf = reinterpret_cast<wchar_t*>(buf.get());
+            MultiByteToWideChar(CP_UTF8, 0, in.c_str(), -1, out_buf, encoded_size);
+            return std::u16string{ buf.get() };
         }
 
         std::string utf16_to_utf8(const std::u16string& in)
         {
-            int encoded_size = WideCharToMultiByte(CP_UTF8, 0, in.c_str(), -1, 
+            LPCWSTR in_buf = reinterpret_cast<const wchar_t*>(in.c_str());
+            int encoded_size = WideCharToMultiByte(CP_UTF8, 0, in_buf, -1, 
                     nullptr, 0, nullptr, nullptr);
             std::unique_ptr<char[]> buf = std::make_unique<char[]>(encoded_size);
-            WideCharToMultiByte(CP_UTF8, 0, in.c_str(), -1, buf.get(), 
+            WideCharToMultiByte(CP_UTF8, 0, in_buf, -1, buf.get(), 
                     encoded_size, nullptr, nullptr);
             return std::string{ buf.get() };
         }
