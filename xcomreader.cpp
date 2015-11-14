@@ -571,7 +571,7 @@ namespace xcom
         ptr_ = data;
         start_.reset(ptr_);
         length_ = uncompressed_length;
-#if 1
+#if 0
         FILE *out_file = fopen("output.dat", "wb");
         if (out_file == nullptr) {
             throw std::runtime_error("Failed to open output file");
