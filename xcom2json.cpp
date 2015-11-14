@@ -36,7 +36,8 @@ static std::string escape(const std::string& str) {
             break;
         default:
             if (str[i] > 0 && str[i] < ' ') {
-                std::string hex = util::to_hex(reinterpret_cast<const unsigned char *>(&str[i]), 1);
+                std::string hex = 
+                    util::to_hex(reinterpret_cast<const unsigned char *>(&str[i]), 1);
                 ret += "\\u00";
                 ret += hex;
             }
@@ -162,7 +163,8 @@ struct json_writer
         end_item(omit_newline);
     }
 
-    void write_string(const std::string &name, const std::string &val, bool omit_newline = false)
+    void write_string(const std::string &name, const std::string &val, 
+            bool omit_newline = false)
     {
         write_key(name);
         out << "\"" << escape(val) << "\"";
@@ -195,7 +197,9 @@ private:
 
 struct json_property_visitor : public property_visitor
 {
-    json_property_visitor(json_writer &writer, const actor_table &ga, const actor_table &la) : w(writer), global_actors(ga), local_actors(la) {}
+    json_property_visitor(json_writer &writer, const actor_table &ga, 
+        const actor_table &la) : 
+            w(writer), global_actors(ga), local_actors(la) {}
 
     void write_common(property* prop, bool omit_newline = false)
     {
@@ -263,7 +267,8 @@ struct json_property_visitor : public property_visitor
         w.write_string("struct_name", prop->struct_name);
 
         if (prop->native_data_length > 0) {
-            w.write_string("native_data", util::to_hex(prop->native_data.get(), prop->native_data_length));
+            w.write_string("native_data", 
+                util::to_hex(prop->native_data.get(), prop->native_data_length));
             w.write_key("properties");
             w.begin_array(true);
             w.end_array();
@@ -274,9 +279,9 @@ struct json_property_visitor : public property_visitor
             w.begin_array();
             std::for_each(prop->properties.begin(), prop->properties.end(),
                 [this](const property_ptr& v) {
-                json_property_visitor visitor(*this);
-                v->accept(&visitor);
-            });
+                    json_property_visitor visitor(*this);
+                    v->accept(&visitor);
+                });
             w.end_array();
         }
         w.end_object();
@@ -288,7 +293,8 @@ struct json_property_visitor : public property_visitor
         write_common(prop);
         w.write_int("data_length", prop->data_length);
         w.write_int("array_bound", prop->array_bound);
-        std::string data_str = (prop->array_bound > 0) ? util::to_hex(prop->data.get(), prop->data_length) : "";
+        std::string data_str = (prop->array_bound > 0) ? 
+            util::to_hex(prop->data.get(), prop->data_length) : "";
         w.write_string("data", data_str);
         w.end_object();
     }
@@ -338,13 +344,15 @@ struct json_property_visitor : public property_visitor
         write_common(prop);
         w.write_key("structs");
         w.begin_array();
-        std::for_each(prop->elements.begin(), prop->elements.end(), [this](const property_list& proplist) {
-            w.begin_array();
-            std::for_each(proplist.begin(), proplist.end(), [this](const property_ptr& p) {
-                p->accept(this);
+        std::for_each(prop->elements.begin(), prop->elements.end(), 
+            [this](const property_list& proplist) {
+                w.begin_array();
+                std::for_each(proplist.begin(), proplist.end(), 
+                    [this](const property_ptr& p) {
+                        p->accept(this);
+                    });
+                w.end_array();
             });
-            w.end_array();
-        });
 
         w.end_array();
         w.end_object();
@@ -372,7 +380,8 @@ struct json_property_visitor : public property_visitor
     const actor_table &local_actors;
 };
 
-static void checkpoint_to_json(const checkpoint & chk, json_writer& w, const actor_table& global_actors, const actor_table& local_actors)
+static void checkpoint_to_json(const checkpoint & chk, json_writer& w, 
+    const actor_table& global_actors, const actor_table& local_actors)
 {
     w.begin_object();
     w.write_string("name", chk.name);
@@ -405,7 +414,8 @@ static void checkpoint_to_json(const checkpoint & chk, json_writer& w, const act
     w.end_object();
 }
 
-static void checkpoint_chunk_to_json(const checkpoint_chunk& chk, json_writer &w, const saved_game& save)
+static void checkpoint_chunk_to_json(const checkpoint_chunk& chk, 
+    json_writer &w, const saved_game& save)
 {
     w.begin_object();
     w.write_int("unknown_int1", chk.unknown_int1);
@@ -413,8 +423,9 @@ static void checkpoint_chunk_to_json(const checkpoint_chunk& chk, json_writer &w
     w.write_key("checkpoint_table");
     w.begin_array();
     std::for_each(chk.checkpoints.begin(), chk.checkpoints.end(),
-        [&w, &save, &chk](const checkpoint& v) { checkpoint_to_json(v, w, save.actors, chk.actors); }
-    );
+        [&w, &save, &chk](const checkpoint& v) { 
+            checkpoint_to_json(v, w, save.actors, chk.actors); 
+        });
     w.end_array();
 
     w.write_int("unknown_int2", chk.unknown_int2);
@@ -468,8 +479,9 @@ void buildJson(const saved_game& save, json_writer& w)
     w.write_key("checkpoints");
     w.begin_array();
     std::for_each(save.checkpoints.begin(), save.checkpoints.end(),
-        [&w, &save](const checkpoint_chunk& v) { checkpoint_chunk_to_json(v, w, save); w.end_item(false); }
-    );
+        [&w, &save](const checkpoint_chunk& v) { 
+            checkpoint_chunk_to_json(v, w, save); w.end_item(false); 
+        });
     w.end_array();
     w.end_object();
 }

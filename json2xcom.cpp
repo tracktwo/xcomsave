@@ -66,7 +66,8 @@ header build_header(const Json& json)
 
     std::string err;
     if (!json.has_shape(shape, err)) {
-        throw std::runtime_error("Error reading json file: header format does not match\n");
+        throw std::runtime_error(
+                "Error reading json file: header format does not match\n");
     }
 
     hdr.version = json["version"].int_value();
@@ -115,7 +116,8 @@ std::array<T, 3> build_array(const Json& json)
 {
     std::array<T, 3> arr;
     if (json.array_items().size() != 3) {
-        throw std::runtime_error("Error reading json file: format mismatch in vector/rotator array");
+        throw std::runtime_error(
+            "Error reading json file: format mismatch in vector/rotator array");
     }
 
     for (int i = 0; i < 3; ++i) {
@@ -136,10 +138,12 @@ property_ptr build_int_property(const Json& json)
     };
 
     if (!json.has_shape(shape, err)) {
-        throw std::runtime_error("Error reading json file: format mismatch in int property");
+        throw std::runtime_error(
+            "Error reading json file: format mismatch in int property");
     }
 
-    return std::make_unique<int_property>(json["name"].string_value(), json["value"].int_value());
+    return std::make_unique<int_property>(json["name"].string_value(), 
+        json["value"].int_value());
 }
 
 property_ptr build_float_property(const Json& json)
@@ -151,10 +155,12 @@ property_ptr build_float_property(const Json& json)
     };
 
     if (!json.has_shape(shape, err)) {
-        throw std::runtime_error("Error reading json file: format mismatch in float property");
+        throw std::runtime_error(
+            "Error reading json file: format mismatch in float property");
     }
 
-    return std::make_unique<float_property>(json["name"].string_value(), static_cast<float>(json["value"].number_value()));
+    return std::make_unique<float_property>(json["name"].string_value(), 
+            static_cast<float>(json["value"].number_value()));
 }
 
 property_ptr build_bool_property(const Json& json)
@@ -166,10 +172,12 @@ property_ptr build_bool_property(const Json& json)
     };
 
     if (!json.has_shape(shape, err)) {
-        throw std::runtime_error("Error reading json file: format mismatch in bool property");
+        throw std::runtime_error(
+            "Error reading json file: format mismatch in bool property");
     }
 
-    return std::make_unique<bool_property>(json["name"].string_value(), json["value"].bool_value());
+    return std::make_unique<bool_property>(json["name"].string_value(), 
+        json["value"].bool_value());
 }
 
 property_ptr build_string_property(const Json& json)
@@ -181,12 +189,14 @@ property_ptr build_string_property(const Json& json)
     };
 
     if (!json.has_shape(shape, err)) {
-        throw std::runtime_error("Error reading json file: format mismatch in string property");
+        throw std::runtime_error(
+            "Error reading json file: format mismatch in string property");
     }
 
     bool wide = (json["wide"] != Json() && json["wide"].bool_value());
   
-    return std::make_unique<string_property>(json["name"].string_value(), xcom_string{ json["value"].string_value(), wide });
+    return std::make_unique<string_property>(json["name"].string_value(), 
+        xcom_string{ json["value"].string_value(), wide });
 }
 
 property_ptr build_object_property(const Json& json)
@@ -198,10 +208,12 @@ property_ptr build_object_property(const Json& json)
     };
 
     if (!json.has_shape(shape, err)) {
-        throw std::runtime_error("Error reading json file: format mismatch in object property");
+        throw std::runtime_error(
+            "Error reading json file: format mismatch in object property");
     }
 
-    return std::make_unique<object_property>(json["name"].string_value(), json["actor"].int_value());
+    return std::make_unique<object_property>(json["name"].string_value(), 
+        json["actor"].int_value());
 }
 
 property_ptr build_enum_property(const Json& json)
@@ -215,10 +227,13 @@ property_ptr build_enum_property(const Json& json)
     };
 
     if (!json.has_shape(shape, err)) {
-        throw std::runtime_error("Error reading json file: format mismatch in enum property");
+        throw std::runtime_error(
+            "Error reading json file: format mismatch in enum property");
     }
 
-    return std::make_unique<enum_property>(json["name"].string_value(), json["type"].string_value(), json["value"].string_value(), json["extra_value"].int_value());
+    return std::make_unique<enum_property>(json["name"].string_value(), 
+        json["type"].string_value(), json["value"].string_value(), 
+        json["extra_value"].int_value());
 }
 
 property_ptr build_struct_property(const Json& json)
@@ -232,7 +247,8 @@ property_ptr build_struct_property(const Json& json)
     };
 
     if (!json.has_shape(shape, err)) {
-        throw std::runtime_error("Error reading json file: format mismatch in struct property");
+        throw std::runtime_error(
+            "Error reading json file: format mismatch in struct property");
     }
 
     std::unique_ptr<unsigned char[]> data;
@@ -240,11 +256,13 @@ property_ptr build_struct_property(const Json& json)
     if (native_data_str != "") {
         size_t data_len = native_data_str.length() / 2;
         data = util::from_hex(native_data_str);
-        return std::make_unique<struct_property>(json["name"].string_value(), json["struct_name"].string_value(), std::move(data), data_len);
+        return std::make_unique<struct_property>(json["name"].string_value(), 
+            json["struct_name"].string_value(), std::move(data), data_len);
     }
     else {
         property_list props = build_property_list(json["properties"]);
-        return std::make_unique<struct_property>(json["name"].string_value(), json["struct_name"].string_value(), std::move(props));
+        return std::make_unique<struct_property>(json["name"].string_value(), 
+            json["struct_name"].string_value(), std::move(props));
     }
 }
 
@@ -273,7 +291,8 @@ property_ptr build_array_property(const Json& json)
     };
 
     if (!json.has_shape(shape, err)) {
-        throw std::runtime_error("Error reading json file: format mismatch in array property");
+        throw std::runtime_error(
+            "Error reading json file: format mismatch in array property");
     }
 
     const std::string & data_str = json["data"].string_value();
@@ -284,7 +303,8 @@ property_ptr build_array_property(const Json& json)
         data = util::from_hex(data_str);
     }
 
-    return std::make_unique<array_property>(json["name"].string_value(), std::move(data), json["data_length"].int_value(), json["array_bound"].int_value());
+    return std::make_unique<array_property>(json["name"].string_value(), std::move(data),
+        json["data_length"].int_value(), json["array_bound"].int_value());
 }
 
 property_ptr build_object_array_property(const Json& json)
@@ -296,7 +316,8 @@ property_ptr build_object_array_property(const Json& json)
     };
 
     if (!json.has_shape(shape, err)) {
-        throw std::runtime_error("Error reading json file: format mismatch in object array property");
+        throw std::runtime_error(
+            "Error reading json file: format mismatch in object array property");
     }
 
     std::vector<int32_t> elements;
@@ -317,7 +338,8 @@ property_ptr build_number_array_property(const Json& json)
     };
 
     if (!json.has_shape(shape, err)) {
-        throw std::runtime_error("Error reading json file: format mismatch in object array property");
+        throw std::runtime_error(
+            "Error reading json file: format mismatch in object array property");
     }
 
     std::vector<int32_t> elements;
@@ -338,7 +360,8 @@ property_ptr build_string_array_property(const Json& json)
     };
 
     if (!json.has_shape(shape, err)) {
-        throw std::runtime_error("Error reading json file: format mismatch in string array property");
+        throw std::runtime_error(
+            "Error reading json file: format mismatch in string array property");
     }
 
     std::vector<std::string> elements;
@@ -360,7 +383,8 @@ property_ptr build_struct_array_property(const Json& json)
     };
 
     if (!json.has_shape(shape, err)) {
-        throw std::runtime_error("Error reading json file: format mismatch in object array property");
+        throw std::runtime_error(
+            "Error reading json file: format mismatch in object array property");
     }
 
     std::vector<property_list> elements;
@@ -369,7 +393,8 @@ property_ptr build_struct_array_property(const Json& json)
         elements.push_back(build_property_list(elem));
     }
 
-    return std::make_unique<struct_array_property>(json["name"].string_value(), std::move(elements));
+    return std::make_unique<struct_array_property>(json["name"].string_value(), 
+        std::move(elements));
 }
 
 property_ptr build_static_array_property(const Json& json)
@@ -381,10 +406,12 @@ property_ptr build_static_array_property(const Json& json)
     };
 
     if (!json.has_shape(shape, err)) {
-        throw std::runtime_error("Error reading json file: format mismatch in static array property");
+        throw std::runtime_error(
+            "Error reading json file: format mismatch in static array property");
     }
 
-    std::unique_ptr<static_array_property> static_array = std::make_unique<static_array_property>(json["name"].string_value());
+    std::unique_ptr<static_array_property> static_array = 
+        std::make_unique<static_array_property>(json["name"].string_value());
 
     for (const Json& elem : json["properties"].array_items()) {
         static_array->properties.push_back(build_property(elem));
@@ -474,7 +501,8 @@ checkpoint_chunk build_checkpoint_chunk(const Json& json)
     };
 
     if (!json.has_shape(shape, err)) {
-        throw std::runtime_error("Error reading json file: format mismatch in checkpoint chunk");
+        throw std::runtime_error(
+            "Error reading json file: format mismatch in checkpoint chunk");
     }
 
     chunk.unknown_int1 = json["unknown_int1"].int_value();
