@@ -134,6 +134,7 @@ namespace xcom
             object_array_property,
             number_array_property,
             struct_array_property,
+            string_array_property,
             static_array_property,
             last_property
         };
@@ -164,6 +165,7 @@ namespace xcom
     struct object_array_property;
     struct number_array_property;
     struct struct_array_property;
+    struct string_array_property;
     struct static_array_property;
 
     // Visit all property types.
@@ -180,6 +182,7 @@ namespace xcom
         virtual void visit(object_array_property*) = 0;
         virtual void visit(number_array_property*) = 0;
         virtual void visit(struct_array_property*) = 0;
+        virtual void visit(string_array_property*) = 0;
         virtual void visit(static_array_property*) = 0;
     };
 
@@ -374,6 +377,24 @@ namespace xcom
         }
 
         std::vector<property_list> elements;
+    };
+
+    // A string array property. This can be either an array of strings or an array of enums,
+    // and it's not in general possible to determine which without looking at the UPK checkpoint
+    // definition. The elements are represented as an array of strings, but these may actually
+    // hold enum value strings of an unknown enum type.
+    struct string_array_property : public property
+    {
+        string_array_property(const std::string& n, std::vector<std::string> objs) :
+            property(n, kind_t::string_array_property), elements(objs) {}
+
+        virtual size_t size() const;
+
+        virtual void accept(property_visitor *v) {
+            v->visit(this);
+        }
+
+        std::vector<std::string> elements;
     };
 
     // An enum property. Contains the enum type and enum value strings, as well as an "extra" value that I

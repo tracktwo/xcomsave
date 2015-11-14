@@ -30,6 +30,7 @@ property_ptr build_array_property(const Json& json);
 property_ptr build_static_array_property(const Json& json);
 property_ptr build_object_array_property(const Json& json);
 property_ptr build_number_array_property(const Json& json);
+property_ptr build_string_array_property(const Json& json);
 property_ptr build_struct_array_property(const Json& json);
 
 
@@ -42,7 +43,6 @@ static property_dispatch dispatch_table[] = {
     { "ByteProperty", build_enum_property },
     { "StructProperty", build_struct_property },
     { "ArrayProperty", build_array_property },
-    { "ObjectArrayPropety", build_object_array_property },
     { "StaticArrayProperty", build_static_array_property }
 };
 
@@ -258,6 +258,9 @@ property_ptr build_array_property(const Json& json)
     else if (json["structs"] != Json()) {
         return build_struct_array_property(json);
     }
+    else if (json["strings"] != Json()) {
+        return build_string_array_property(json);
+    }
 
     std::string err;
     Json::shape shape = {
@@ -322,6 +325,27 @@ property_ptr build_number_array_property(const Json& json)
     }
 
     return std::make_unique<number_array_property>(json["name"].string_value(), elements);
+}
+
+property_ptr build_string_array_property(const Json& json)
+{
+    std::string err;
+    Json::shape shape = {
+        { "name", Json::STRING },
+        { "strings", Json::ARRAY },
+    };
+
+    if (!json.has_shape(shape, err)) {
+        throw std::runtime_error("Error reading json file: format mismatch in string array property");
+    }
+
+    std::vector<std::string> elements;
+
+    for (const Json& elem : json["elements"].array_items()) {
+        elements.push_back(elem.string_value());
+    }
+
+    return std::make_unique<string_array_property>(json["name"].string_value(), elements);
 }
 
 property_ptr build_struct_array_property(const Json& json)

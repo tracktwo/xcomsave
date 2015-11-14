@@ -39,6 +39,9 @@ namespace xcom
         std::string iso8859_1_to_utf8(const std::string& in);
         std::string utf8_to_iso8859_1(const std::string& in);
 
+        std::wstring utf8_to_utf16(const std::string& in);
+        std::string utf16_to_utf8(const std::wstring& in);
+
         std::string to_hex(const unsigned char *data, size_t dataLen);
         std::unique_ptr<unsigned char[]> from_hex(const std::string& str);
     }

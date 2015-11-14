@@ -9,6 +9,7 @@
 #include <sstream>
 #include <algorithm>
 #include <cstring>
+#include <locale>
 
 using namespace xcom;
 
@@ -315,6 +316,19 @@ struct json_property_visitor : public property_visitor
         w.end_object();
     }
 
+    virtual void visit(string_array_property *prop) override
+    {
+        w.begin_object();
+        write_common(prop);
+        w.write_key("strings");
+        w.begin_array(true);
+        for (unsigned int i = 0; i < prop->elements.size(); ++i) {
+            w.write_raw_string(prop->elements[i], true);
+        }
+        w.end_array();
+        w.end_object();
+    }
+
     virtual void visit(struct_array_property *prop) override
     {
         w.begin_object();
@@ -503,6 +517,8 @@ int main(int argc, char *argv[])
         usage(argv[0]);
         return 1;
     }
+
+    setlocale(LC_ALL, "en_US.utf8");
 
     for (int i = 1; i < argc; ++i) {
         if (strcmp(argv[i], "-o") == 0) {

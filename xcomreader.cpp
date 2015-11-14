@@ -54,19 +54,28 @@ namespace xcom
         if (length == 0) {
             return "";
         }
-        const char *str = reinterpret_cast<const char *>(ptr_);
-        size_t actual_length = strlen(str);
 
-        // Double check the length matches what we read from the file, considering the trailing null is counted in the length 
-        // stored in the file.
-        if (actual_length != (length - 1))
-        {
-            fprintf(stderr, "Error: String mismatch at offset %d. Expected length %d but got %d\n", ptr_ - start_.get(), length, actual_length);
-            return "<error>";
+        if (length < 0) {
+            // A UTF-16 encoded string.
+            length = -length;
+            const wchar_t *str = reinterpret_cast<const wchar_t*>(ptr_);
+            ptr_ += 2 * length;
+            return util::utf16_to_utf8(str);
         }
+        else {
+            const char *str = reinterpret_cast<const char *>(ptr_);
+            size_t actual_length = strlen(str);
 
-        ptr_ += length;
-        return util::iso8859_1_to_utf8(str);
+            // Double check the length matches what we read from the file, considering the trailing null is counted in the length 
+            // stored in the file.
+            if (actual_length != (length - 1))
+            {
+                fprintf(stderr, "Error: String mismatch at offset %d. Expected length %d but got %d\n", ptr_ - start_.get(), length, actual_length);
+                return "<error>";
+            }
+            ptr_ += length;
+            return util::iso8859_1_to_utf8(str);
+        }
     }
 
     header reader::read_header()
@@ -161,13 +170,15 @@ namespace xcom
         }
     }
 
-    static bool is_struct_property(const unsigned char *ptr)
+    // Determine if this is a struct or string property. Returns struct_array_property if it's a struct
+    // array, string_array_property if it's a string/enum array, or last_array_property if it's neither.
+    static property::kind_t is_struct_or_string_property(const unsigned char *ptr, uint32_t array_data_size)
     {
         // Sniff the first part of the array data to see if it looks like a string.
         int32_t str_length = *reinterpret_cast<const int*>(ptr);
-        if (str_length > 0 && str_length < 100) {
+        if (str_length > 0 && static_cast<size_t>(str_length) < array_data_size) {
             const char *str = reinterpret_cast<const char *>(ptr) + 4;
-            if (str[str_length] == 0 && strlen(str) == (str_length - 1))
+            if (str[str_length-1] == 0 && strlen(str) == (str_length -1))
             {
                 // Ok, looks like a name string. Distinguish between a struct
                 // array and a enum array by looking at the next string. if it's a property
@@ -177,21 +188,24 @@ namespace xcom
                 // Skip over the string length, string data, and zero int.
                 ptr += 4 + str_length + 4;
                 str_length = *reinterpret_cast<const int*>(ptr);
-                if (str_length > 0 && str_length < 100) {
+                if (str_length > 0 && static_cast<size_t>(str_length) < array_data_size) {
                     str = reinterpret_cast<const char *>(ptr + 4);
-                    if (str[str_length] == 0 && strlen(str) == (str_length - 1))
+                    if (str[str_length-1] == 0 && strlen(str) == (str_length - 1))
                     {
                         for (int i = 0; i < static_cast<int>(property::kind_t::last_property); ++i) {
                             if (property_kind_to_string(static_cast<property::kind_t>(i)) == str) {
-                                return true;
+                                return property::kind_t::struct_array_property;
                             }
                         }
                     }
                 }
+
+                // Doesn't look like a struct. This is likely an enum (or string?)
+                return property::kind_t::string_array_property;
             }
         }
 
-        return false;
+        return property::kind_t::last_property;
     }
 
 
@@ -228,19 +242,36 @@ namespace xcom
 
                 return std::make_unique<number_array_property>(name, elems);
             }
-            else if (is_struct_property(ptr_)) {
-                std::vector<property_list> elements;
-                for (int32_t i = 0; i < array_bound; ++i) {
-                    elements.push_back(read_properties());
-                }
-
-                return std::make_unique<struct_array_property>(name, std::move(elements));
-            }
             else {
-                // Nope, dunno what this thing is.
-                array_data = std::make_unique<unsigned char[]>(array_data_size);
-                memcpy(array_data.get(), ptr_, array_data_size);
-                ptr_ += array_data_size;
+                property::kind_t kind = is_struct_or_string_property(ptr_, array_data_size);
+                if (kind == property::kind_t::struct_array_property) {
+                    std::vector<property_list> elements;
+                    for (int32_t i = 0; i < array_bound; ++i) {
+                        elements.push_back(read_properties());
+                    }
+
+                    return std::make_unique<struct_array_property>(name, std::move(elements));
+                }
+#if 0
+                else if (kind == property::kind_t::string_array_property) {
+                    std::vector<std::string> elements;
+                    for (int32_t i = 0; i < array_bound; ++i) {
+                        elements.push_back(read_string());
+                        int32_t tmp = read_int();
+                        if (tmp != 0) {
+                            throw format_exception(offset(), "Read non-zero value after string/enum array element");
+                        }
+                    }
+
+                    return std::make_unique<string_array_property>(name, std::move(elements));
+                }
+#endif
+                else {
+                    // Nope, dunno what this thing is.
+                    array_data = std::make_unique<unsigned char[]>(array_data_size);
+                    memcpy(array_data.get(), ptr_, array_data_size);
+                    ptr_ += array_data_size;
+                }
             }
         }
         return std::make_unique<array_property>(name, std::move(array_data), array_data_size, array_bound);
@@ -529,7 +560,7 @@ namespace xcom
         ptr_ = data;
         start_.reset(ptr_);
         length_ = uncompressed_length;
-#if 0
+#if 1
         FILE *out_file = fopen("output.dat", "wb");
         if (out_file == nullptr) {
             throw std::exception("Failed to open output file");

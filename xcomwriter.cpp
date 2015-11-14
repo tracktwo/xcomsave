@@ -47,7 +47,25 @@ namespace xcom
             write_int(0);
         }
         else {
-            // Ensure we have space for the string size + string data + trailing null
+            std::wstring conv16 = util::utf8_to_utf16(str);
+            for (size_t i = 0; i < conv16.length(); ++i) {
+                if (conv16[i] > 0xFF) {
+                    // Looks like a string that should be utf-16 encoded
+                    ensure(conv16.length() * 2 + 6);
+                    // Write the length as a negative value, including the terminating null character
+                    write_int((conv16.length() + 1) * -1);
+                    // Copy 2*length bytes of string data
+                    memcpy(ptr_, conv16.c_str(), conv16.length() * 2);
+                    ptr_ += conv16.length() * 2;
+
+                    // Write a double terminating null
+                    *ptr_++ = 0;
+                    *ptr_++ = 0;
+                    return;
+                }
+            }
+
+            // Looks like it's an ASCII/Latin-1 string.
             std::string conv = util::utf8_to_iso8859_1(str);
             ensure(conv.length() + 5);
             write_int(conv.length() + 1);
@@ -211,6 +229,14 @@ namespace xcom
             writer_->write_int(prop->elements.size());
             for (size_t i = 0; i < prop->elements.size(); ++i) {
                 writer_->write_int(prop->elements[i]);
+            }
+        }
+
+        virtual void visit(string_array_property *prop) override
+        {
+            writer_->write_int(prop->elements.size());
+            for (size_t i = 0; i < prop->elements.size(); ++i) {
+                writer_->write_string(prop->elements[i]);
             }
         }
 

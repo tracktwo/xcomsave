@@ -25,6 +25,10 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include <sstream>
 #include <stdarg.h>
 
+#ifdef _MSC_VER
+#include <windows.h>
+#endif
+
 #include "xcom.h"
 
 namespace xcom
@@ -180,6 +184,24 @@ namespace xcom
             return out;
         }
 
+#ifdef _MSC_VER
+        std::wstring utf8_to_utf16(const std::string& in)
+        {
+            int encoded_size = MultiByteToWideChar(CP_UTF8, 0, in.c_str(), -1, nullptr, 0);
+            std::unique_ptr<wchar_t[]> buf = std::make_unique<wchar_t[]>(encoded_size);
+            MultiByteToWideChar(CP_UTF8, 0, in.c_str(), -1, buf.get(), encoded_size);
+            return std::wstring{ buf.get() };
+        }
+
+        std::string utf16_to_utf8(const std::wstring& in)
+        {
+            int encoded_size = WideCharToMultiByte(CP_UTF8, 0, in.c_str(), -1, nullptr, 0, nullptr, nullptr);
+            std::unique_ptr<char[]> buf = std::make_unique<char[]>(encoded_size);
+            WideCharToMultiByte(CP_UTF8, 0, in.c_str(), -1, buf.get(), encoded_size, nullptr, nullptr);
+            return std::string{ buf.get() };
+        }
+#endif
+
     } // namespace util
 
     size_t property::full_size() const
@@ -209,13 +231,13 @@ namespace xcom
         case property::kind_t::object_array_property:
         case property::kind_t::number_array_property:
         case property::kind_t::struct_array_property:
+        case property::kind_t::string_array_property:
             return "ArrayProperty";
         case property::kind_t::static_array_property: return "StaticArrayProperty";
         default:
-            std::string s = "Invalid property kind: ";
-            s += static_cast<int>(kind);
-            s += "\n";
-            throw std::runtime_error(s.c_str());
+            std::stringstream err;
+            err << "Invalid property kind: " << static_cast<int>(kind) << std::endl;
+            throw std::runtime_error(err.str().c_str());
         }
     }
 
@@ -229,6 +251,18 @@ namespace xcom
         if (str.empty()) {
             return 4;
         }
+        // Convert the entire string to utf-16
+        std::wstring tmp16 = util::utf8_to_utf16(str);
+        
+        for (size_t i = 0; i < tmp16.length(); ++i)
+        {
+            if (tmp16[i] > 0xFF)
+            {
+                //Looks like a UTF16 string
+                return 6 + 2 * tmp16.length();
+            }
+        }
+
         // 4 for string length + 1 for terminating null. Make sure to use the ISO-8859-1 encoded length!
         std::string tmp = util::utf8_to_iso8859_1(str);
         return tmp.length() + 5;
@@ -258,6 +292,24 @@ namespace xcom
             total += 9 + 4;
             return total;
         }
+    }
+
+    size_t string_array_property::size() const
+    {
+        size_t total = 4; // the array bound
+
+        for (const std::string &s : elements) {
+            if (s.length() == 0) {
+                total += 8; // empty strings have size 4 for the count + 4 for the zero word following the string
+            }
+            else {
+                std::string tmp = util::utf8_to_iso8859_1(s);
+                total += 9 + tmp.length(); // non-empty strings have length 4 + string length for the string + 1 for
+                                           // the terminating null + 4 for the zero word following the string.
+            }
+        }
+
+        return total;
     }
 
     std::string build_actor_name(const std::string& package, const std::string& cls, int instance)
