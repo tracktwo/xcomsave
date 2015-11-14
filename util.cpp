@@ -27,6 +27,8 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 #ifdef _MSC_VER
 #include <windows.h>
+#else
+#include <iconv.h>
 #endif
 
 #include "xcom.h"
@@ -185,20 +187,48 @@ namespace xcom
         }
 
 #ifdef _MSC_VER
-        std::wstring utf8_to_utf16(const std::string& in)
+        std::u16string utf8_to_utf16(const std::string& in)
         {
             int encoded_size = MultiByteToWideChar(CP_UTF8, 0, in.c_str(), -1, nullptr, 0);
-            std::unique_ptr<wchar_t[]> buf = std::make_unique<wchar_t[]>(encoded_size);
+            std::unique_ptr<char16_t[]> buf = std::make_unique<char16_t[]>(encoded_size);
             MultiByteToWideChar(CP_UTF8, 0, in.c_str(), -1, buf.get(), encoded_size);
             return std::wstring{ buf.get() };
         }
 
-        std::string utf16_to_utf8(const std::wstring& in)
+        std::string utf16_to_utf8(const std::u16string& in)
         {
             int encoded_size = WideCharToMultiByte(CP_UTF8, 0, in.c_str(), -1, nullptr, 0, nullptr, nullptr);
             std::unique_ptr<char[]> buf = std::make_unique<char[]>(encoded_size);
             WideCharToMultiByte(CP_UTF8, 0, in.c_str(), -1, buf.get(), encoded_size, nullptr, nullptr);
             return std::string{ buf.get() };
+        }
+#else
+        
+        std::u16string utf8_to_utf16(const std::string& in)
+        {
+            iconv_t cd = iconv_open("UTF-16LE", "UTF-8");
+            const char *in_buf = in.c_str();
+            std::size_t in_length = in.length();
+            std::size_t out_length = in.length() * 2 + 1;
+            std::unique_ptr<char16_t[]> out_ptr = std::make_unique<char16_t[]>(out_length);
+            char *out_buf = reinterpret_cast<char *>(out_ptr.get());
+            size_t result = iconv(cd, const_cast<char **>(&in_buf), &in_length, 
+                &out_buf, &out_length);
+            return std::u16string{ out_ptr.get() };
+        }
+
+        std::string utf16_to_utf8(const std::u16string& in)
+        {
+            iconv_t cd = iconv_open("UTF-8", "UTF-16LE");
+            const char *in_buf = reinterpret_cast<const char *>(in.c_str());
+            std::size_t in_length = in.length() * sizeof(char16_t);
+            std::size_t out_length = in.length() * 4 + 1;
+            std::unique_ptr<char []> out_ptr = std::make_unique<char []>(out_length);
+            char *out_buf = out_ptr.get();
+            size_t result = iconv(cd, const_cast<char **>(&in_buf), &in_length,
+                &out_buf, &out_length);
+            return std::string{ out_ptr.get() };
+
         }
 #endif
 
@@ -253,7 +283,7 @@ namespace xcom
         }
 
         if (str.is_wide) {
-            std::wstring tmp16 = util::utf8_to_utf16(str.str);
+            std::u16string tmp16 = util::utf8_to_utf16(str.str);
             return 6 + 2 * tmp16.length();
         }
         else {

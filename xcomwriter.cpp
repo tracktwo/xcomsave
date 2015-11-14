@@ -51,7 +51,7 @@ namespace xcom
             write_int(0);
         }
         else if (s.is_wide) {
-            std::wstring conv16 = util::utf8_to_utf16(s.str);
+            std::u16string conv16 = util::utf8_to_utf16(s.str);
             ensure(conv16.length() * 2 + 6);
             // Write the length as a negative value, including the terminating null character
             write_int((conv16.length() + 1) * -1);

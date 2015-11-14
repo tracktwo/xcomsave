@@ -42,16 +42,19 @@ namespace xcom
         size_t length;
     };
 
-    // A string. This class is only used in very specific places - namely string properties in
-    // actors. It appears that most of the strings embedded in the save file, especially property
-    // names and types and other metadata, are always in Latin-1 (ISO-8859-1) for INT games, and
-    // are primarily all ASCII. Property strings may be in either Latin-1 or in UTF-16: if the length
-    // of the string is a negative value, multiply the length by -1 but interpret the string as UTF-16
-    // characters, otherwise treat it as containing Latin-1.
+    // A string. This class is only used in very specific places - namely
+    // string properties in actors. It appears that most of the strings
+    // embedded in the save file, especially property names and types and other
+    // metadata, are always in Latin-1 (ISO-8859-1) for INT games, and are
+    // primarily all ASCII. Property strings may be in either Latin-1 or in
+    // UTF-16: if the length of the string is a negative value, multiply the
+    // length by -1 but interpret the string as UTF-16 characters, otherwise
+    // treat it as containing Latin-1.
     //
-    // Regardless of how they appear in the save, all strings are uniformly represented in UTF-8
-    // internally to this library. The conversion to and from either Latin-1 or UTF-16 is done
-    // only when reading or writing the save data.
+    // Regardless of how they appear in the save, all strings are uniformly
+    // represented in UTF-8 internally to this library. The conversion to and
+    // from either Latin-1 or UTF-16 is done only when reading or writing the
+    // save data.
     struct xcom_string
     {
         // A UTF-8 representation of the string
@@ -61,15 +64,17 @@ namespace xcom
         bool is_wide;
     };
 
-    // The header occurs at the start of the save file and is the only uncompressed part
-    // of the save. The first 1024 bytes of the save are the header, although most of
-    // it is all zeros. The header contains two checksums: the first checksum occurs 
-    // at the end of the main header data blob (e.g. the data represented in this struct)
-    // and is the CRC32 of all the compressed data in the file. E.g. everything from byte
-    // 1024 on. The second checksum is the header checksum and is represented at the end
-    // of the header, starting at offset 1016. The first value is the 4-byte length of the
-    // header data checksummed. It's the first N bytes of the header up to and including the
-    // first CRC and the four zero bytes immediately following it. The second 4-byte integer
+    // The header occurs at the start of the save file and is the only
+    // uncompressed part of the save. The first 1024 bytes of the save are the
+    // header, although most of it is all zeros. The header contains two
+    // checksums: the first checksum occurs at the end of the main header data
+    // blob (e.g. the data represented in this struct) and is the CRC32 of all
+    // the compressed data in the file. E.g. everything from byte
+    // 1024 on. The second checksum is the header checksum and is represented
+    // at the end of the header, starting at offset 1016. The first value
+    // is the 4-byte length of the header data checksummed. It's the first
+    // N bytes of the header up to and including the first CRC and the
+    // four zero bytes immediately following it. The second 4-byte integer
     // is the CRC32 of the header data itself. e.g.:
     //
     // 0		: Header Data (version through language)
@@ -122,22 +127,30 @@ namespace xcom
 
     struct property_visitor;
 
-    // An Unreal property. Saved actors and other objects are made up of property values.
-    // These can be simple primitive values (int, float, bool, string, enums), object values (actors),
-    // or aggregate types (arrays, structs, and static arrays of another property type).
+    // An Unreal property. Saved actors and other objects are made up of
+    // property values.  These can be simple primitive values (int, float,
+    // bool, string, enums), object values (actors), or aggregate types
+    // (arrays, structs, and static arrays of another property type).
     //
-    // Most of the kinds are present directly in the saved game, but arrays have some special handling
-    // here to make them easier to deal with:
+    // Most of the kinds are present directly in the saved game, but arrays
+    // have some special handling here to make them easier to deal with:
     //
-    // Dynamic arrays are all represented identically in the save but have different representations
-    // in this library. They can be one of the following kinds:
+    // Dynamic arrays are all represented identically in the save but have
+    // different representations in this library. They can be one of the
+    // following kinds:
     //
-    // ObjectArrayProperty - An array of objects (actors). Contents are simply actor reference numbers.
-    // NumberArrayProperty - An array of numbers. Could be integers or floats, depending on the particular
-    // property. There is no unambiguous way to distinguish the two cases from analyzing the save file alone,
-    // you need to "know" the real type of the object by looking in the corresponding UPK file. Array data
-    // is represented as an array of ints, but may need to be cast to floats if appropriate.
-    // ArrayProperty - An array of 
+    // ObjectArrayProperty - An array of objects (actors). Contents are simply
+    // actor reference numbers.
+    // 
+    // NumberArrayProperty - An array of numbers. Could be integers or floats,
+    // depending on the particular property. There is no unambiguous way to
+    // distinguish the two cases from analyzing the save file alone, you need
+    // to "know" the real type of the object by looking in the corresponding
+    // UPK file. Array data is represented as an array of ints, but may need to
+    // be cast to floats if appropriate.
+    //
+    // ArrayProperty - An array of something else. Strings/enums are the typical
+    // case but they are not yet completely handled.
     struct property
     {
         enum class kind_t
@@ -284,13 +297,16 @@ namespace xcom
         float value;
     };
 
-    // A string property contains a string value. For INT saves, these are recorded in either ISO-8859-1 or UTF-16
-    // format, but are translated by the library to and from UTF-8 for ease of interoperability with other libraries.
-    // Note that non-INT saves likely use some other encoding for the strings, but I do not know which. 
+    // A string property contains a string value. For INT saves, these are
+    // recorded in either ISO-8859-1 or UTF-16 format, but are translated by
+    // the library to and from UTF-8 for ease of interoperability with other
+    // libraries.  Note that non-INT saves likely use some other encoding for
+    // the strings, but I do not know which. 
     //
-    // When modifying strings, be sure to adjust the "is_wide" flag if you inject characters that cannot be represented
-    // in Latin-1. It's likely always save to mark strings as wide even if not necessary, but the converse will likely
-    // crash the game.
+    // When modifying strings, be sure to adjust the "is_wide" flag if you
+    // inject characters that cannot be represented in Latin-1. It's likely
+    // always save to mark strings as wide even if not necessary, but the
+    // converse will likely crash the game.
     struct string_property : public property
     {
         string_property(const std::string& n, const xcom_string& s) :
@@ -305,14 +321,18 @@ namespace xcom
         xcom_string str;
     };
 
-    // A dynamic array property. Represents an Unreal dynamic array. This type is used for "raw" arrays where
-    // we have not correctly determined the contents of the array. The saved array format doesn't explicitly 
-    // say what the type of objects are in a dynamic array, this information is read from the UPK file containing
-    // the class that defines this checkpoint. However, we can use some heuristics to guess the broad kind of
-    // object. One of the specific array property types will be used when we can determine it (object_array_property,
-    // number_array_property, struct_array_property). This type is used as a fallback if the heuristic fails, and it
-    // just treats the entire array contents as a big blob of binary data - we can't even necessarily determine where
-    // each element begins and ends inside the blob.
+    // A dynamic array property. Represents an Unreal dynamic array. This type
+    // is used for "raw" arrays where we have not correctly determined the
+    // contents of the array. The saved array format doesn't explicitly say
+    // what the type of objects are in a dynamic array, this information is
+    // read from the UPK file containing the class that defines this
+    // checkpoint. However, we can use some heuristics to guess the broad kind
+    // of object. One of the specific array property types will be used when we
+    // can determine it (object_array_property, number_array_property,
+    // struct_array_property). This type is used as a fallback if the heuristic
+    // fails, and it just treats the entire array contents as a big blob of
+    // binary data - we can't even necessarily determine where each element
+    // begins and ends inside the blob.
     struct array_property : public property
     {
         array_property(const std::string& n, std::unique_ptr<unsigned char[]>&& a, int32_t dl, int32_t b) :
@@ -349,10 +369,11 @@ namespace xcom
         std::vector<int32_t> elements;
     };
 
-    // A number array property. This can be either an array of ints or an array of floats,
-    // and it's not in general possible to determine which without looking at the UPK checkpoint
-    // definition. The elements are represented as an array of integers, but these may actually
-    // hold floating point values.
+    // A number array property. This can be either an array of ints or an array
+    // of floats, and it's not in general possible to determine which without
+    // looking at the UPK checkpoint definition. The elements are represented
+    // as an array of integers, but these may actually hold floating point
+    // values.
     struct number_array_property : public property
     {
         number_array_property(const std::string& n, std::vector<int32_t> objs) :
@@ -369,12 +390,14 @@ namespace xcom
         std::vector<int32_t> elements;
     };
 
-    // A struct array property. Each element is a struct instance and all elements share the
-    // same struct type but the actual name of the struct is unknown (it can be found in the UPK).
+    // A struct array property. Each element is a struct instance and all
+    // elements share the same struct type but the actual name of the struct is
+    // unknown (it can be found in the UPK).
     //
-    // Note that structs listed here may have default properties, in which case some properties may
-    // be missing for some elements. It's impossible to determine the full list of properties in 
-    // a struct array without looking in the UPK to get the full struct definition, but a good approximation
+    // Note that structs listed here may have default properties, in which case
+    // some properties may be missing for some elements. It's impossible to
+    // determine the full list of properties in a struct array without looking
+    // in the UPK to get the full struct definition, but a good approximation
     // is the set union of all properties across all the elements in the array.
     struct struct_array_property : public property
     {
@@ -401,10 +424,11 @@ namespace xcom
         std::vector<property_list> elements;
     };
 
-    // A string array property. This can be either an array of strings or an array of enums,
-    // and it's not in general possible to determine which without looking at the UPK checkpoint
-    // definition. The elements are represented as an array of strings, but these may actually
-    // hold enum value strings of an unknown enum type.
+    // A string array property. This can be either an array of strings or an
+    // array of enums, and it's not in general possible to determine which
+    // without looking at the UPK checkpoint definition. The elements are
+    // represented as an array of strings, but these may actually hold enum
+    // value strings of an unknown enum type.
     struct string_array_property : public property
     {
         string_array_property(const std::string& n, std::vector<std::string> objs) :
@@ -419,10 +443,12 @@ namespace xcom
         std::vector<std::string> elements;
     };
 
-    // An enum property. Contains the enum type and enum value strings, as well as an "extra" value that I
-    // am not entirely sure how to interpret, but is commonly used in LW extended enums. Vanilla enums generally have '0' for this
-    // extra value for all members. LW extended enums typically re-use the names of an existing enum member, but each successive
-    // additional entry with the same name has an extra value larger than the previous.
+    // An enum property. Contains the enum type and enum value strings, as well
+    // as an "extra" value that I am not entirely sure how to interpret, but is
+    // commonly used in LW extended enums. Vanilla enums generally have '0' for
+    // this extra value for all members. LW extended enums typically re-use the
+    // names of an existing enum member, but each successive additional entry
+    // with the same name has an extra value larger than the previous.
     struct enum_property : public property
     {
         enum_property(const std::string& n, const std::string &et, const std::string &ev, int32_t i) :
@@ -434,7 +460,8 @@ namespace xcom
         }
 
         virtual size_t full_size() const {
-            // full size must also include the length of the inner "unknown" value and the enum Type string length.
+            // full size must also include the length of the inner "unknown"
+            // value and the enum Type string length.
             return property::full_size() + enum_type.length() + 5 + 4;
         }
 
@@ -469,9 +496,11 @@ namespace xcom
         size_t native_data_length;
     };
 
-    // A static array property. Static arrays are not first-class objects in the save, they are instead represented by
-    // the elements themselves listed sequentially in the save, each with an increasing array index value. This property type
-    // is a pseudo-property used as a container for all the array elements.
+    // A static array property. Static arrays are not first-class objects in
+    // the save, they are instead represented by the elements themselves listed
+    // sequentially in the save, each with an increasing array index value.
+    // This property type is a pseudo-property used as a container for all the
+    // array elements.
     struct static_array_property : public property
     {
         static_array_property(const std::string& n) :
@@ -510,7 +539,8 @@ namespace xcom
     // actor that is serialized by the game.
     struct checkpoint
     {
-        // The fully-qualified name of the actor, e.g. Command1.TheWorld.PersistentLevel.XGStrategy_0
+        // The fully-qualified name of the actor, e.g.
+        // Command1.TheWorld.PersistentLevel.XGStrategy_0
         std::string name;
 
         // The instance name of the actor, e.g. XGStrategy_0
@@ -528,7 +558,8 @@ namespace xcom
         // A list of properties (e.g. the member variables of the actor instance)
         property_list properties;
 
-        // The index for this actor into the actor template table. Appears to be unused in strategy saves.
+        // The index for this actor into the actor template table. Appears to
+        // be unused in strategy saves.
         int32_t template_index;
 
         // The number of padding bytes (all zeros) appended to the checkpoint.
@@ -558,11 +589,11 @@ namespace xcom
 
     using name_table = std::vector<name_entry>;
 
-    // A checkpoint "chunk". The xcom strategy save is primarily a list of these 
-    // (see XComCheckpointChunkTable). It is not entirely known what the various chunks
-    // are for, and most of the fields are unknown. In fact the unknown integer type fields
-    // may not be integers at all, but rather some other kind of table that is always empty
-    // in strategy saves.
+    // A checkpoint "chunk". The xcom strategy save is primarily a list of
+    // these (see XComCheckpointChunkTable). It is not entirely known what the
+    // various chunks are for, and most of the fields are unknown. In fact the
+    // unknown integer type fields may not be integers at all, but rather some
+    // other kind of table that is always empty in strategy saves.
     struct checkpoint_chunk
     {
         int32_t unknown_int1;
@@ -576,7 +607,8 @@ namespace xcom
         // Unknown
         int32_t unknown_int2;
 
-        // The class for this chunk. E.g. a top-level game type, like XComStrategyGame.XComHeadquartersGame.
+        // The class for this chunk. E.g. a top-level game type, like
+        // XComStrategyGame.XComHeadquartersGame.
         std::string class_name;
 
         // An actor table for actors in this chunk
@@ -598,25 +630,29 @@ namespace xcom
     using checkpoint_chunk_table = std::vector<checkpoint_chunk>;
 
     // An xcom save. The save consists of three main parts:
-    // 1) The header. This part is always uncompressed (parts 2 and 3 are stored
-    // compressed in the file) and contains basic information about the save:
-    // the save numbers and identifiers, crc values to detect save corruption,
-    // and miscellaneous flags (ironman, autosave, tactical save).
+    // 1) The header. This part is always uncompressed (parts 2 and 3 are
+    //    stored compressed in the file) and contains basic information about
+    //    the save: the save numbers and identifiers, crc values to detect save
+    //    corruption, and miscellaneous flags (ironman, autosave, tactical
+    //    save).
     //
-    // 2) The global actor table. This is a bit list of actor identifiers as strings
-    // in the format GameName.Class_Instance. The game name is always "Command1" for
-    // strategy level saves (the name of the strategy "map"). The Class name is the
-    // name of the actor class (e.g. XGStrategySoldier) and the Instance is an integer
-    // uniquely identifying a particular instance of that class. E.g. Command1.XGStrategySoldier_3
-    // is the 4th (0 is the first) soldier instance.
+    // 2) The global actor table. This is a bit list of actor identifiers as
+    //    strings in the format GameName.Class_Instance. The game name is
+    //    always "Command1" for strategy level saves (the name of the strategy
+    //    "map"). The Class name is the name of the actor class (e.g.
+    //    XGStrategySoldier) and the Instance is an integer uniquely identifying 
+    //    a particular instance of that class. E.g. Command1.XGStrategySoldier_3
+    //    is the 4th (0 is the first) soldier instance.
     //
-    // 3) The checkpoint chunk table. This is a list of several "chunks". It's not really
-    // known at this point what these chunks represent, but they do contain all main information
-    // in the saved game. I have a suspicion that I haven't fully looked into that these are
-    // corresponding to the "ActorClassesToRecord" and "ActorClassesToDestroy" lists in XComGame.Checkpoint
-    // but I haven't confirmed this yet. Note that each checkpoint "chunk" has its own actor table
-    // in addition to the global actor table in 2. I also haven't fully explored how these tables are
-    // different.
+    // 3) The checkpoint chunk table. This is a list of several "chunks". It's
+    //    not really known at this point what these chunks represent, but they
+    //    do contain all main information in the saved game. I have a suspicion
+    //    that I haven't fully looked into that these are corresponding to the
+    //    "ActorClassesToRecord" and "ActorClassesToDestroy" lists in
+    //    XComGame.Checkpoint but I haven't confirmed this yet. Note that each 
+    //    checkpoint "chunk" has its own actor table in addition to the global 
+    //    actor table in 2. I also haven't fully explored how these tables are 
+    //    different.
     struct saved_game
     {
         header hdr;

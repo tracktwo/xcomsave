@@ -69,7 +69,7 @@ namespace xcom
             
             // A UTF-16 encoded string.
             length = -length;
-            const wchar_t *str = reinterpret_cast<const wchar_t*>(ptr_);
+            const char16_t *str = reinterpret_cast<const char16_t*>(ptr_);
             ptr_ += 2 * length;
             return{ util::utf16_to_utf8(str), true };
         }
@@ -500,10 +500,10 @@ namespace xcom
             }
 
             // Compressed size is at p+8
-            compressed_size = *(reinterpret_cast<const unsigned long*>(p + 8));
+            compressed_size = *(reinterpret_cast<const uint32_t *>(p + 8));
 
             // Uncompressed size is at p+12
-            uncompressed_size += *(reinterpret_cast<const unsigned long*>(p + 12));
+            uncompressed_size += *(reinterpret_cast<const uint32_t*>(p + 12));
 
             // Skip to next chunk - 24 bytes of this chunk header + compressedSize bytes later.
             p += (compressed_size + 24);
@@ -574,7 +574,7 @@ namespace xcom
 #if 1
         FILE *out_file = fopen("output.dat", "wb");
         if (out_file == nullptr) {
-            throw std::exception("Failed to open output file");
+            throw std::runtime_error("Failed to open output file");
         }
         fwrite(data, 1, length_, out_file);
         fclose(out_file);
