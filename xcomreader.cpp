@@ -50,17 +50,28 @@ namespace xcom
 
     std::string reader::read_string()
     {
+        xcom_string s = read_unicode_string();
+        if (s.is_wide)
+        {
+            throw format_exception(offset(), "Found UTF-16 string in unexpected location");
+        }
+        return s.str;
+    }
+
+    xcom_string reader::read_unicode_string()
+    {
         int32_t length = read_int();
         if (length == 0) {
-            return "";
+            return{ "", false };
         }
 
         if (length < 0) {
+            
             // A UTF-16 encoded string.
             length = -length;
             const wchar_t *str = reinterpret_cast<const wchar_t*>(ptr_);
             ptr_ += 2 * length;
-            return util::utf16_to_utf8(str);
+            return{ util::utf16_to_utf8(str), true };
         }
         else {
             const char *str = reinterpret_cast<const char *>(ptr_);
@@ -71,10 +82,10 @@ namespace xcom
             if (actual_length != (length - 1))
             {
                 fprintf(stderr, "Error: String mismatch at offset %d. Expected length %d but got %d\n", ptr_ - start_.get(), length, actual_length);
-                return "<error>";
+                return {"<error>", false};
             }
             ptr_ += length;
-            return util::iso8859_1_to_utf8(str);
+            return{ util::iso8859_1_to_utf8(str), false };
         }
     }
 
@@ -341,7 +352,7 @@ namespace xcom
                 prop = make_struct_property(name);
             }
             else if (prop_type.compare("StrProperty") == 0) {
-                std::string str = read_string();
+                xcom_string str = read_unicode_string();
                 prop = std::make_unique<string_property>(name, str);
             }
             else

@@ -48,6 +48,7 @@ namespace xcom
         int32_t read_int();
         float read_float();
         std::string read_string();
+        xcom_string read_unicode_string();
         bool read_bool();
         header read_header();
         actor_table read_actor_table();

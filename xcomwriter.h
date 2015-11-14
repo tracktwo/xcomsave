@@ -50,6 +50,7 @@ namespace xcom
 
         void ensure(size_t count);
         void write_string(const std::string& str);
+        void write_unicode_string(const xcom_string &str);
         void write_int(int32_t val);
         void write_float(float val);
         void write_bool(bool b);

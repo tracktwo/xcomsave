@@ -37,36 +37,36 @@ namespace xcom
             length_ = new_length;
             ptr_ = start_.get() + current_count;
         }
-
     }
 
     void writer::write_string(const std::string& str)
     {
-        if (str.empty()) {
+        write_unicode_string({ str, false });
+    }
+
+    void writer::write_unicode_string(const xcom_string& s)
+    {
+        if (s.str.empty()) {
             // An empty string is just written as size 0
             write_int(0);
         }
+        else if (s.is_wide) {
+            std::wstring conv16 = util::utf8_to_utf16(s.str);
+            ensure(conv16.length() * 2 + 6);
+            // Write the length as a negative value, including the terminating null character
+            write_int((conv16.length() + 1) * -1);
+            // Copy 2*length bytes of string data
+            memcpy(ptr_, conv16.c_str(), conv16.length() * 2);
+            ptr_ += conv16.length() * 2;
+
+            // Write a double terminating null
+            *ptr_++ = 0;
+            *ptr_++ = 0;
+            return;
+        }
         else {
-            std::wstring conv16 = util::utf8_to_utf16(str);
-            for (size_t i = 0; i < conv16.length(); ++i) {
-                if (conv16[i] > 0xFF) {
-                    // Looks like a string that should be utf-16 encoded
-                    ensure(conv16.length() * 2 + 6);
-                    // Write the length as a negative value, including the terminating null character
-                    write_int((conv16.length() + 1) * -1);
-                    // Copy 2*length bytes of string data
-                    memcpy(ptr_, conv16.c_str(), conv16.length() * 2);
-                    ptr_ += conv16.length() * 2;
-
-                    // Write a double terminating null
-                    *ptr_++ = 0;
-                    *ptr_++ = 0;
-                    return;
-                }
-            }
-
             // Looks like it's an ASCII/Latin-1 string.
-            std::string conv = util::utf8_to_iso8859_1(str);
+            std::string conv = util::utf8_to_iso8859_1(s.str);
             ensure(conv.length() + 5);
             write_int(conv.length() + 1);
             memcpy(ptr_, conv.c_str(), conv.length());
@@ -163,7 +163,7 @@ namespace xcom
 
         virtual void visit(string_property *prop) override
         {
-            writer_->write_string(prop->str);
+            writer_->write_unicode_string(prop->str);
         }
 
         virtual void visit(object_property *prop) override

@@ -248,24 +248,19 @@ namespace xcom
 
     size_t string_property::size() const
     {
-        if (str.empty()) {
+        if (str.str.empty()) {
             return 4;
         }
-        // Convert the entire string to utf-16
-        std::wstring tmp16 = util::utf8_to_utf16(str);
-        
-        for (size_t i = 0; i < tmp16.length(); ++i)
-        {
-            if (tmp16[i] > 0xFF)
-            {
-                //Looks like a UTF16 string
-                return 6 + 2 * tmp16.length();
-            }
-        }
 
-        // 4 for string length + 1 for terminating null. Make sure to use the ISO-8859-1 encoded length!
-        std::string tmp = util::utf8_to_iso8859_1(str);
-        return tmp.length() + 5;
+        if (str.is_wide) {
+            std::wstring tmp16 = util::utf8_to_utf16(str.str);
+            return 6 + 2 * tmp16.length();
+        }
+        else {
+            // 4 for string length + 1 for terminating null. Make sure to use the ISO-8859-1 encoded length!
+            std::string tmp = util::utf8_to_iso8859_1(str.str);
+            return tmp.length() + 5;
+        }
     }
 
     size_t struct_property::full_size() const

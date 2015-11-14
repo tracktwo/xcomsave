@@ -231,7 +231,10 @@ struct json_property_visitor : public property_visitor
     {
         w.begin_object(true);
         write_common(prop, true);
-        w.write_string("value", prop->str, true);
+        if (prop->str.is_wide) {
+            w.write_bool("wide", true, true);
+        }
+        w.write_string("value", prop->str.str, true);
         w.end_object();
     }
 

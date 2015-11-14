@@ -42,6 +42,25 @@ namespace xcom
         size_t length;
     };
 
+    // A string. This class is only used in very specific places - namely string properties in
+    // actors. It appears that most of the strings embedded in the save file, especially property
+    // names and types and other metadata, are always in Latin-1 (ISO-8859-1) for INT games, and
+    // are primarily all ASCII. Property strings may be in either Latin-1 or in UTF-16: if the length
+    // of the string is a negative value, multiply the length by -1 but interpret the string as UTF-16
+    // characters, otherwise treat it as containing Latin-1.
+    //
+    // Regardless of how they appear in the save, all strings are uniformly represented in UTF-8
+    // internally to this library. The conversion to and from either Latin-1 or UTF-16 is done
+    // only when reading or writing the save data.
+    struct xcom_string
+    {
+        // A UTF-8 representation of the string
+        std::string str;
+        // If true, this string should be written in UTF-16 format in the 
+        // save file. Otherwise, it's written in ISO-8859-1
+        bool is_wide;
+    };
+
     // The header occurs at the start of the save file and is the only uncompressed part
     // of the save. The first 1024 bytes of the save are the header, although most of
     // it is all zeros. The header contains two checksums: the first checksum occurs 
@@ -265,13 +284,16 @@ namespace xcom
         float value;
     };
 
-    // A string property contains a string value. For INT saves, these are recorded in ISO-8859-1 format,
-    // but are translated by the library to and from UTF-8 for ease of interoperability with other libraries.
-    // Be careful not to store characters that cannot be represented in ISO-8859-1 or the game will most likely
-    // crash. Note that non-INT saves likely use some other encoding for the strings, but I do not know which.
+    // A string property contains a string value. For INT saves, these are recorded in either ISO-8859-1 or UTF-16
+    // format, but are translated by the library to and from UTF-8 for ease of interoperability with other libraries.
+    // Note that non-INT saves likely use some other encoding for the strings, but I do not know which. 
+    //
+    // When modifying strings, be sure to adjust the "is_wide" flag if you inject characters that cannot be represented
+    // in Latin-1. It's likely always save to mark strings as wide even if not necessary, but the converse will likely
+    // crash the game.
     struct string_property : public property
     {
-        string_property(const std::string& n, const std::string& s) :
+        string_property(const std::string& n, const xcom_string& s) :
             property(n, kind_t::string_property), str(s) {}
 
         virtual size_t size() const;
@@ -280,7 +302,7 @@ namespace xcom
             v->visit(this);
         }
 
-        std::string str;
+        xcom_string str;
     };
 
     // A dynamic array property. Represents an Unreal dynamic array. This type is used for "raw" arrays where

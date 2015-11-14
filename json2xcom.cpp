@@ -184,7 +184,9 @@ property_ptr build_string_property(const Json& json)
         throw std::runtime_error("Error reading json file: format mismatch in string property");
     }
 
-    return std::make_unique<string_property>(json["name"].string_value(), json["value"].string_value());
+    bool wide = (json["wide"] != Json() && json["wide"].bool_value());
+  
+    return std::make_unique<string_property>(json["name"].string_value(), xcom_string{ json["value"].string_value(), wide });
 }
 
 property_ptr build_object_property(const Json& json)
