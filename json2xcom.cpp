@@ -402,7 +402,6 @@ property_ptr build_static_array_property(const Json& json)
     std::string err;
     Json::shape shape = {
         { "name", Json::STRING },
-        { "properties", Json::ARRAY },
     };
 
     if (!json.has_shape(shape, err)) {
@@ -410,13 +409,31 @@ property_ptr build_static_array_property(const Json& json)
             "Error reading json file: format mismatch in static array property");
     }
 
-    std::unique_ptr<static_array_property> static_array = 
+    std::unique_ptr<static_array_property> static_array =
         std::make_unique<static_array_property>(json["name"].string_value());
 
-    for (const Json& elem : json["properties"].array_items()) {
-        static_array->properties.push_back(build_property(elem));
+    if (json["int_values"] != Json()) {
+        // An array of integers.
+        for (const Json &v : json["int_values"].array_items()) {
+            static_array->properties.push_back(
+                std::make_unique<int_property>(json["name"].string_value(),
+                    v.int_value()));
+        }
     }
-
+    else if (json["string_values"] != Json()) {
+        // An array of (narrow) strings
+        for (const Json &v : json["string_values"].array_items()) {
+            static_array->properties.push_back(
+                std::make_unique<string_property>(json["name"].string_value(),
+                    xcom_string{ v.string_value(), false }));
+        }
+    }
+    else
+    {
+        for (const Json& elem : json["properties"].array_items()) {
+            static_array->properties.push_back(build_property(elem));
+        }
+    }
     return property_ptr{ static_array.release() };
 }
 

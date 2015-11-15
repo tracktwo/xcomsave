@@ -229,7 +229,6 @@ namespace xcom
             return std::string{ buf.get() };
         }
 #else
-        
         std::u16string utf8_to_utf16(const std::string& in)
         {
             iconv_t cd = iconv_open("UTF-16LE", "UTF-8");

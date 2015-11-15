@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <cstring>
 #include <locale>
+#include <cassert>
 
 using namespace xcom;
 
@@ -358,20 +359,54 @@ struct json_property_visitor : public property_visitor
         w.end_object();
     }
 
+    // Return true if we can condense a static array of strings into just a series of string literals in an array instead of having
+    // a big array of nested string properties. This is the case as long as none of the strings in question are wide.
+    // TODO: Probably need to revisit this for non-INT games where it's possibly a lot more likely that all the strings will be UTF-16.
+    bool can_condense_string_array(const static_array_property& static_array)
+    {
+        for (const property_ptr& prop : static_array.properties) {
+            const string_property *string_prop = dynamic_cast<const string_property*>(prop.get());
+            assert(string_prop != nullptr);
+            if (string_prop->str.is_wide) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     virtual void visit(static_array_property *prop) override
     {
         w.begin_object();
         write_common(prop);
-        w.write_key("properties");
-        w.begin_array();
 
-        std::for_each(prop->properties.begin(), prop->properties.end(),
-            [this](const property_ptr& v) {
-            json_property_visitor visitor(*this);
-            v->accept(&visitor);
-        });
+        // If this array holds well-known subtypes (int), write them right in this node instead of repeating it
+        if (prop->properties.size() > 0 && prop->properties[0]->kind == property::kind_t::int_property) {
+            w.write_key("int_values");
+            w.begin_array(true);
+            for (const property_ptr& v : prop->properties) {
+                const int_property *int_prop = dynamic_cast<const int_property*>(v.get());
+                w.write_raw_int(int_prop->value, true);
+            }
+            w.end_array();
+        }
+        else if (prop->properties.size() > 0 && prop->properties[0]->kind == property::kind_t::string_property && can_condense_string_array(*prop)) {
+            w.write_key("string_values");
+            w.begin_array(true);
+            for (const property_ptr& v : prop->properties) {
+                const string_property *string_prop = dynamic_cast<const string_property*>(v.get());
+                w.write_raw_string(string_prop->str.str, true);
+            }
+            w.end_array();
+        }
+        else {
+            w.write_key("properties");
+            w.begin_array();
+            for (const property_ptr& v : prop->properties) {
+                v->accept(this);
+            }
+            w.end_array();
+        }
 
-        w.end_array();
         w.end_object();
     }
 
