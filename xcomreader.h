@@ -31,13 +31,7 @@ namespace xcom
     class reader
     {
     public:
-        reader(buffer<unsigned char>&& b) :
-            start_(std::move(b.buf))
-        {
-            length_ = b.length;
-            ptr_ = start_.get();
-        }
-
+        reader(buffer<unsigned char>&& b);
         saved_game save_data();
 
     private:
@@ -62,6 +56,7 @@ namespace xcom
         void uncompressed_data(unsigned char *);
 
     private:
+        header header_;
         std::unique_ptr<unsigned char[]> start_;
         unsigned char *ptr_;
         size_t length_;

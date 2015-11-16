@@ -29,6 +29,29 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 namespace xcom
 {
+
+    reader::reader(buffer<unsigned char>&& b)
+    {
+        start_ = std::move(b.buf);
+        length_ = b.length;
+        ptr_ = start_.get();
+
+        header_ = read_header();
+    
+        size_t uncompressed_length = uncompressed_size();
+        if (uncompressed_length < 0) {
+            throw format_exception(offset(), "Found no uncompressed data in save.\n");
+        }
+
+        unsigned char *data = new unsigned char[uncompressed_length];
+        uncompressed_data(data);
+
+        // We're now done with the compressed file. Swap over to the uncompressed data
+        ptr_ = data;
+        start_.reset(ptr_);
+        length_ = uncompressed_length;
+    }
+
     int32_t reader::read_int()
     {
         int32_t v = *(reinterpret_cast<const int32_t*>(ptr_));
@@ -600,20 +623,7 @@ namespace xcom
     saved_game reader::save_data()
     {
         saved_game save;
-        save.hdr = read_header();
-
-        size_t uncompressed_length = uncompressed_size();
-        if (uncompressed_length < 0) {
-            return{};
-        }
-
-        unsigned char *data = new unsigned char[uncompressed_length];
-        uncompressed_data(data);
-
-        // We're now done with the compressed file. Swap over to the uncompressed data
-        ptr_ = data;
-        start_.reset(ptr_);
-        length_ = uncompressed_length;
+        save.hdr = header_;
 #if 0
         FILE *out_file = fopen("output.dat", "wb");
         if (out_file == nullptr) {
