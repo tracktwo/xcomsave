@@ -523,7 +523,9 @@ void buildJson(const saved_game& save, json_writer& w)
 
 void usage(const char * name)
 {
-    printf("Usage: %s [-o <outfile>] <infile>\n", name);
+    printf("Usage: %s [-o <out_file>] [-t <uncompressed_file>] <in_file>\n", name);
+    printf("-o -- Specify output file name, defaults to <in_file>.json\n");
+    printf("-t -- Dump uncompressed save data to named file.\n");
 }
 
 buffer<unsigned char> read_file(const std::string& filename)
@@ -562,6 +564,7 @@ int main(int argc, char *argv[])
     bool writesave = false;
     std::string infile;
     std::string outfile;
+    std::string tmpfile;
 
     if (argc <= 1) {
         usage(argv[0]);
@@ -573,6 +576,9 @@ int main(int argc, char *argv[])
     for (int i = 1; i < argc; ++i) {
         if (strcmp(argv[i], "-o") == 0) {
             outfile = argv[++i];
+        }
+        else if (strcmp(argv[i], "-t") == 0) {
+            tmpfile = argv[++i];
         }
         else {
             if (!infile.empty()) {
@@ -601,6 +607,15 @@ int main(int argc, char *argv[])
 
     try {
         reader rdr{ std::move(fileBuf) };
+        if (!tmpfile.empty()) {
+            FILE *uncompressed_file = fopen(tmpfile.c_str(), "wb");
+            if (uncompressed_file == nullptr) {
+                throw std::runtime_error("Failed to open file for uncompressed save data");
+            }
+            buffer<unsigned char> uncompressed_buf = rdr.uncompressed_data();
+            fwrite(uncompressed_buf.buf.get(), 1, uncompressed_buf.length, uncompressed_file);
+            fclose(uncompressed_file);
+        }
         saved_game save = rdr.save_data();
         json_writer w{ outfile };
         buildJson(save, w);

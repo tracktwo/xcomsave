@@ -37,19 +37,13 @@ namespace xcom
         ptr_ = start_.get();
 
         header_ = read_header();
-    
-        size_t uncompressed_length = uncompressed_size();
-        if (uncompressed_length < 0) {
-            throw format_exception(offset(), "Found no uncompressed data in save.\n");
-        }
 
-        unsigned char *data = new unsigned char[uncompressed_length];
-        uncompressed_data(data);
+        buffer<unsigned char> uncompressed = decompress();
 
         // We're now done with the compressed file. Swap over to the uncompressed data
-        ptr_ = data;
-        start_.reset(ptr_);
-        length_ = uncompressed_length;
+        start_ = std::move(uncompressed.buf);
+        length_ = uncompressed.length;
+        ptr_ = start_.get();
     }
 
     int32_t reader::read_int()
@@ -545,7 +539,7 @@ namespace xcom
         return names;
     }
 
-    size_t reader::uncompressed_size()
+    size_t reader::calculate_uncompressed_size()
     {
         // The compressed data begins 1024 bytes into the file.
         const unsigned char* p = start_.get() + 1024;
@@ -574,11 +568,17 @@ namespace xcom
         return uncompressed_size;
     }
 
-    void reader::uncompressed_data(unsigned char *buf)
+    buffer<unsigned char> reader::decompress()
     {
+        size_t uncompressed_size = calculate_uncompressed_size();
+        if (uncompressed_size < 0) {
+            throw format_exception(offset(), "Found no uncompressed data in save.\n");
+        }
+
+        std::unique_ptr<unsigned char[]> buf = std::make_unique<unsigned char[]>(uncompressed_size);
         // Start back at the beginning of the compressed data.
         const unsigned char *p = start_.get() + 1024;
-        unsigned char *outp = buf;
+        unsigned char *outp = buf.get();
 
         do
         {
@@ -586,7 +586,6 @@ namespace xcom
             if (*(reinterpret_cast<const uint32_t*>(p)) != UPK_Magic) {
                 throw format_exception(p - start_.get(), 
                         "Failed to find compressed chunk header\n");
-                return;
             }
 
             // Compressed size is at p+8
@@ -601,7 +600,6 @@ namespace xcom
                                       &decomp_size, nullptr) != LZO_E_OK) {
                 throw format_exception(p - start_.get(), 
                         "LZO decompress of save data failed\n");
-                return;
             }
 
             unsigned long tmpSize = decomp_size + decomp_size / 16 + 64 + 3;
@@ -610,7 +608,6 @@ namespace xcom
             if (decomp_size != uncompressed_size)
             {
                 throw format_exception(p - start_.get(), "Failed to decompress chunk\n");
-                return;
             }
 
             // Skip to next chunk - 24 bytes of this chunk header +
@@ -618,20 +615,21 @@ namespace xcom
             p += (compressed_size + 24);
             outp += uncompressed_size;
         } while (static_cast<size_t>(p - start_.get()) < length_);
+
+        return{ std::move(buf), uncompressed_size };
+    }
+
+    buffer<unsigned char> reader::uncompressed_data() const
+    {
+        std::unique_ptr<unsigned char[]> data = std::make_unique<unsigned char[]>(length_);
+        memcpy(data.get(), start_.get(), length_);
+        return{ std::move(data), length_ };
     }
 
     saved_game reader::save_data()
     {
         saved_game save;
         save.hdr = header_;
-#if 0
-        FILE *out_file = fopen("output.dat", "wb");
-        if (out_file == nullptr) {
-            throw std::runtime_error("Failed to open output file");
-        }
-        fwrite(data, 1, length_, out_file);
-        fclose(out_file);
-#endif
         save.actors = read_actor_table();
 
         // Jump back to here after each chunk

@@ -32,6 +32,7 @@ namespace xcom
     {
     public:
         reader(buffer<unsigned char>&& b);
+        buffer<unsigned char> uncompressed_data() const;
         saved_game save_data();
 
     private:
@@ -52,8 +53,8 @@ namespace xcom
         property_ptr make_struct_property(const std::string& name);
         actor_template_table read_actor_template_table();
         name_table read_name_table();
-        size_t uncompressed_size();
-        void uncompressed_data(unsigned char *);
+        size_t calculate_uncompressed_size();
+        buffer<unsigned char> decompress();
 
     private:
         header header_;
