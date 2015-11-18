@@ -604,6 +604,7 @@ int main(int argc, char *argv[])
     bool writesave = false;
     std::string  infile;
     std::string outfile;
+    std::string tmpfile;
 
     if (argc <= 1) {
         usage(argv[0]);
@@ -613,6 +614,9 @@ int main(int argc, char *argv[])
     for (int i = 1; i < argc; ++i) {
         if (strcmp(argv[i], "-o") == 0) {
             outfile = argv[++i];
+        }
+        else if (strcmp(argv[i], "-t") == 0) {
+            tmpfile = argv[++i];
         }
         else {
             if (!infile.empty()) {
@@ -650,6 +654,15 @@ int main(int argc, char *argv[])
     try {
         saved_game save = build_save(jsonsave);
         writer w(std::move(save));
+        if (!tmpfile.empty()) {
+            FILE *uncompressed_file = fopen(tmpfile.c_str(), "wb");
+            if (uncompressed_file == nullptr) {
+                throw std::runtime_error("Failed to open file for uncompressed save data");
+            }
+            buffer<unsigned char> uncompressed_buf = w.uncompressed_data();
+            fwrite(uncompressed_buf.buf.get(), 1, uncompressed_buf.length, uncompressed_file);
+            fclose(uncompressed_file);
+        }
         buffer<unsigned char> save_buffer = w.save_data();
 
         FILE *fp = fopen(outfile.c_str(), "wb");

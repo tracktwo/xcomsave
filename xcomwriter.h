@@ -33,14 +33,11 @@ namespace xcom
     class writer
     {
     public:
-        writer(saved_game && save) :
-            save_(std::move(save)), ptr_{}, length_{ 0 }
-        {}
-
+        writer(saved_game && save);
         buffer<unsigned char> save_data();
+        buffer<unsigned char> uncompressed_data() const;
 
         static const constexpr size_t initial_size = 1024 * 1024;
-
         friend property_writer_visitor;
 
     private:
@@ -65,10 +62,10 @@ namespace xcom
         buffer<unsigned char> compress();
 
     private:
-        saved_game save_;
         std::unique_ptr<unsigned char[]> start_;
         unsigned char* ptr_;
         size_t length_;
+        header hdr_;
     };
 } //namespace xcom
 #endif // XCOMWRITER_H

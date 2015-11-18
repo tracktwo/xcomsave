@@ -25,6 +25,20 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 namespace xcom
 {
+
+    writer::writer(saved_game &&save)
+    {
+        start_ = std::make_unique<unsigned char[]>(initial_size);
+        ptr_ = start_.get();
+        length_ = initial_size;
+
+        // Write out the initial actor table
+        write_actor_table(save.actors);
+
+        // Write the checkpoint chunks
+        write_checkpoint_chunks(save.checkpoints);
+    }
+
     void writer::ensure(size_t count)
     {
         ptrdiff_t current_count = offset();
@@ -424,27 +438,16 @@ namespace xcom
         return b;
     }
 
+    buffer<unsigned char> writer::uncompressed_data() const
+    {
+        size_t len = static_cast<size_t>(offset());
+        std::unique_ptr<unsigned char[]> data = std::make_unique<unsigned char[]>(len);
+        memcpy(data.get(), start_.get(), len);
+        return{ std::move(data), len };
+    }
+
     buffer<unsigned char> writer::save_data()
     {
-        start_ = std::make_unique<unsigned char[]>(initial_size);
-        ptr_ = start_.get();
-        length_ = initial_size;
-
-        // Write out the initial actor table
-        write_actor_table(save_.actors);
-
-        // Write the checkpoint chunks
-        write_checkpoint_chunks(save_.checkpoints);
-
-#if 0
-        // Write the raw data file
-        FILE *out_file = fopen("newoutput.dat", "wb");
-        if (out_file == nullptr) {
-            throw std::runtime_error("Failed to open output file\n");
-        }
-        fwrite(start_.get(), 1, offset(), out_file);
-        fclose(out_file);
-#endif
         buffer<unsigned char> b = compress();
 
         // Reset the internal buffer to the compressed data to write the header
@@ -452,7 +455,7 @@ namespace xcom
         ptr_ = start_.get();
         length_ = b.length;
 
-        write_header(save_.hdr);
+        write_header(hdr_);
 
         // Move the save data back into the buffer to return
         b.buf = std::move(start_);
