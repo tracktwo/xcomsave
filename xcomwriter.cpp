@@ -31,6 +31,7 @@ namespace xcom
         start_ = std::make_unique<unsigned char[]>(initial_size);
         ptr_ = start_.get();
         length_ = initial_size;
+        hdr_ = save.hdr;
 
         // Write out the initial actor table
         write_actor_table(save.actors);

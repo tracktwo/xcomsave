@@ -523,41 +523,10 @@ void buildJson(const saved_game& save, json_writer& w)
 
 void usage(const char * name)
 {
-    printf("Usage: %s [-o <out_file>] [-t <uncompressed_file>] <in_file>\n", name);
+    printf("Usage: %s [-o <out_file>] <in_file>\n", name);
     printf("-o -- Specify output file name, defaults to <in_file>.json\n");
-    printf("-t -- Dump uncompressed save data to named file.\n");
 }
 
-buffer<unsigned char> read_file(const std::string& filename)
-{
-    buffer<unsigned char> buffer;
-    FILE *fp = fopen(filename.c_str(), "rb");
-    if (fp == nullptr) {
-        fprintf(stderr, "Error opening file\n");
-        return{};
-    }
-
-    if (fseek(fp, 0, SEEK_END) != 0) {
-        fprintf(stderr, "Error determining file length\n");
-        return{};
-    }
-
-    buffer.length = ftell(fp);
-
-    if (fseek(fp, 0, SEEK_SET) != 0) {
-        fprintf(stderr, "Error determining file length\n");
-        return{};
-    }
-
-    buffer.buf = std::make_unique<unsigned char[]>(buffer.length);
-    if (fread(buffer.buf.get(), 1, buffer.length, fp) != buffer.length) {
-        fprintf(stderr, "Error reading file contents\n");
-        return{};
-    }
-
-    fclose(fp);
-    return buffer;
-}
 
 int main(int argc, char *argv[])
 {
@@ -576,9 +545,6 @@ int main(int argc, char *argv[])
     for (int i = 1; i < argc; ++i) {
         if (strcmp(argv[i], "-o") == 0) {
             outfile = argv[++i];
-        }
-        else if (strcmp(argv[i], "-t") == 0) {
-            tmpfile = argv[++i];
         }
         else {
             if (!infile.empty()) {
@@ -599,24 +565,8 @@ int main(int argc, char *argv[])
         outfile = infile + ".json";
     }
 
-    buffer<unsigned char> fileBuf = read_file(infile);
-
-    if (fileBuf.length == 0) {
-        return 1;
-    }
-
     try {
-        reader rdr{ std::move(fileBuf) };
-        if (!tmpfile.empty()) {
-            FILE *uncompressed_file = fopen(tmpfile.c_str(), "wb");
-            if (uncompressed_file == nullptr) {
-                throw std::runtime_error("Failed to open file for uncompressed save data");
-            }
-            buffer<unsigned char> uncompressed_buf = rdr.uncompressed_data();
-            fwrite(uncompressed_buf.buf.get(), 1, uncompressed_buf.length, uncompressed_file);
-            fclose(uncompressed_file);
-        }
-        saved_game save = rdr.save_data();
+        saved_game save = read_xcom_save(infile);
         json_writer w{ outfile };
         buildJson(save, w);
     }

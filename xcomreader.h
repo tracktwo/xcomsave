@@ -31,20 +31,51 @@ namespace xcom
     class reader
     {
     public:
-        reader(buffer<unsigned char>&& b);
+        reader::reader(buffer<unsigned char>&& b) :
+            start_(std::move(b.buf)), length_(b.length)
+        {
+            ptr_ = start_.get();
+        }
+
         buffer<unsigned char> uncompressed_data() const;
         saved_game save_data();
 
-    private:
+    public:
         std::ptrdiff_t offset() const {
             return ptr_ - start_.get();
         }
 
+        size_t size() const {
+            return length_;
+        }
+
+        const unsigned char * pointer() const {
+            return ptr_;
+        }
+
+        bool eof() const
+        {
+            return static_cast<size_t>(offset()) >= length_;
+        }
+
+        enum class seek_kind {
+            start,
+            current,
+            end
+        };
+
+        void seek(seek_kind k, size_t offset);
         int32_t read_int();
         float read_float();
         std::string read_string();
         xcom_string read_unicode_string();
         bool read_bool();
+        unsigned char read_byte();
+        std::unique_ptr<unsigned char[]> read_raw_bytes(size_t count);
+        void read_raw_bytes(size_t count, unsigned char *outp);
+
+        uint32_t crc(size_t length);
+#if 0
         header read_header();
         actor_table read_actor_table();
         checkpoint_table read_checkpoint_table();
@@ -55,9 +86,8 @@ namespace xcom
         name_table read_name_table();
         size_t calculate_uncompressed_size();
         buffer<unsigned char> decompress();
-
+#endif
     private:
-        header header_;
         std::unique_ptr<unsigned char[]> start_;
         unsigned char *ptr_;
         size_t length_;

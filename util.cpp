@@ -32,6 +32,8 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #endif
 
 #include "xcom.h"
+#include "xcomreader.h"
+#include "xcomwriter.h"
 
 namespace xcom
 {

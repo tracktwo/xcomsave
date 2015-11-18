@@ -40,7 +40,7 @@ namespace xcom
         static const constexpr size_t initial_size = 1024 * 1024;
         friend property_writer_visitor;
 
-    private:
+    public:
         std::ptrdiff_t offset() const {
             return ptr_ - start_.get();
         }

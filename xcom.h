@@ -604,7 +604,7 @@ namespace xcom
         std::string name;
         unsigned char zeros[8];
         size_t data_length;
-        unsigned char *data;
+        std::unique_ptr<unsigned char[]> data;
     };
 
     using name_table = std::vector<name_entry>;
@@ -691,6 +691,9 @@ namespace xcom
         std::ptrdiff_t offset_;
         char buf_[1024];
     };
+
+    saved_game read_xcom_save(const std::string &infile);
+    void write_xcom_save(const saved_game &save, const std::string &outfile);
 
 } // namespace xcom
 #endif // XCOM_H
