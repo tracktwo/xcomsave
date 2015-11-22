@@ -18,7 +18,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 */
 
 #include "minilzo.h"
-#include "xcomreader.h"
+#include "xcomio.h"
 #include "util.h"
 
 #include <string>
@@ -32,118 +32,9 @@ namespace xcom
 
     static const size_t compressed_data_start = 1024;
 
-    property_list read_properties(reader &r);
+    property_list read_properties(xcom_io &r);
 
-    void reader::seek(seek_kind k, size_t offset)
-    {
-        switch (k)
-        {
-        case seek_kind::start:
-            ptr_ = start_.get() + offset;
-            break;
-        case seek_kind::current:
-            ptr_ += offset;
-            break;
-        case seek_kind::end:
-            ptr_ = start_.get() + length_ + offset;
-        }
-    }
-
-    int32_t reader::read_int()
-    {
-        int32_t v = *(reinterpret_cast<const int32_t*>(ptr_));
-        ptr_ += 4;
-        return v;
-    }
-
-    float reader::read_float()
-    {
-        float f = *(reinterpret_cast<const float*>(ptr_));
-        ptr_ += 4;
-        return f;
-    }
-
-    bool reader::read_bool()
-    {
-        return read_int() != 0;
-    }
-
-    unsigned char reader::read_byte()
-    {
-        return *ptr_++;
-    }
-
-    std::string reader::read_string()
-    {
-        xcom_string s = read_unicode_string();
-        if (s.is_wide)
-        {
-            throw format_exception(offset(), "Found UTF-16 string in unexpected location");
-        }
-        return s.str;
-    }
-
-    xcom_string reader::read_unicode_string()
-    {
-        int32_t length = read_int();
-        if (length == 0) {
-            return{ "", false };
-        }
-
-        if (length < 0) {
-            
-            // A UTF-16 encoded string.
-            length = -length;
-
-            // Sanity check
-            if ((offset() + static_cast<size_t>(length)) > length_) {
-                throw format_exception(offset(), "read_string found an invalid string length.");
-            }
-            const char16_t *str = reinterpret_cast<const char16_t*>(ptr_);
-            ptr_ += 2 * length;
-            return{ util::utf16_to_utf8(str), true };
-        }
-        else {
-
-            // Sanity check
-            if ((offset() + static_cast<size_t>(length)) > length_) {
-                throw format_exception(offset(), "read_string found an invalid string length.");
-            }
-
-            const char *str = reinterpret_cast<const char *>(ptr_);
-            size_t actual_length = strlen(str);
-
-            // Double check the length matches what we read from the file,
-            // considering the trailing null is counted in the length stored in
-            // the file.
-            if (actual_length != (length - 1))
-            {
-                throw format_exception(offset(), "String mismatch: expected length %d but found %d\n", length, actual_length);
-            }
-            ptr_ += length;
-            return{ util::iso8859_1_to_utf8(str), false };
-        }
-    }
-
-    std::unique_ptr<unsigned char[]> reader::read_raw_bytes(size_t count)
-    {
-        std::unique_ptr<unsigned char[]> buf = std::make_unique<unsigned char[]>(count);
-        read_raw_bytes(count, buf.get());
-        return buf;
-    }
-
-    void reader::read_raw_bytes(size_t count, unsigned char *outp)
-    {
-        memcpy(outp, ptr_, count);
-        ptr_ += count;
-    }
-
-    uint32_t reader::crc(size_t length)
-    {
-        return util::crc32b(ptr_, length);
-    }
-
-    header read_header(reader &r)
+    header read_header(xcom_io &r)
     {
         header hdr;
         hdr.version = r.read_int();
@@ -167,12 +58,12 @@ namespace xcom
         uint32_t compressed_crc = (uint32_t)r.read_int();
 
         // Compute the CRC of the header
-        r.seek(reader::seek_kind::start, 1016);
+        r.seek(xcom_io::seek_kind::start, 1016);
         int32_t hdr_size = r.read_int();
         uint32_t hdr_crc = (uint32_t)r.read_int();
 
         // CRC the first hdr_size bytes of the buffer
-        r.seek(reader::seek_kind::start, 0);
+        r.seek(xcom_io::seek_kind::start, 0);
         uint32_t computed_hdr_crc = r.crc(hdr_size);
         if (hdr_crc != computed_hdr_crc)
         {
@@ -180,7 +71,7 @@ namespace xcom
         }
 
         // CRC the compressed data
-        r.seek(reader::seek_kind::start, compressed_data_start);
+        r.seek(xcom_io::seek_kind::start, compressed_data_start);
         uint32_t computed_compressed_crc = r.crc(r.size() - 1024);
         if (computed_compressed_crc != compressed_crc)
         {
@@ -189,7 +80,7 @@ namespace xcom
         return hdr;
     }
 
-    actor_table read_actor_table(reader &r)
+    actor_table read_actor_table(xcom_io &r)
     {
         actor_table actors;
         int32_t actor_count = r.read_int();
@@ -217,7 +108,7 @@ namespace xcom
         return actors;
     }
 
-    property_ptr make_struct_property(reader& r, const std::string &name)
+    property_ptr make_struct_property(xcom_io& r, const std::string &name)
     {
         std::string struct_name = r.read_string();
         int32_t inner_unknown = r.read_int();
@@ -246,16 +137,16 @@ namespace xcom
     // Determine if this is a struct or string property. Returns
     // struct_array_property if it's a struct array, string_array_property if
     // it's a string/enum array, or last_array_property if it's neither.
-    static property::kind_t is_struct_or_string_property(reader &r,
+    static property::kind_t is_struct_or_string_property(xcom_io &r,
             uint32_t array_data_size)
     {
         // Save the current position so we can rewind to it
         struct reset_position {
-            reset_position(reader &r) : r_(r), ofs_(r.offset()) {}
+            reset_position(xcom_io &r) : r_(r), ofs_(r.offset()) {}
             ~reset_position() {
-                r_.seek(reader::seek_kind::start, ofs_);
+                r_.seek(xcom_io::seek_kind::start, ofs_);
             }
-            reader& r_;
+            xcom_io& r_;
             size_t ofs_;
         } reset_position(r);
 
@@ -263,7 +154,7 @@ namespace xcom
         int32_t str_length = r.read_int();
         if (str_length > 0 && static_cast<size_t>(str_length) < array_data_size) {
             // Skip over the string data, and zero int.
-            r.seek(reader::seek_kind::current, str_length + 4);
+            r.seek(xcom_io::seek_kind::current, str_length + 4);
             str_length = r.read_int();
             if (str_length > 0 && static_cast<size_t>(str_length) < array_data_size) {
                 const char * str = reinterpret_cast<const char *>(r.pointer());
@@ -285,7 +176,7 @@ namespace xcom
     }
 
 
-    property_ptr make_array_property(reader &r, const std::string &name, 
+    property_ptr make_array_property(xcom_io &r, const std::string &name, 
             int32_t property_size)
     {
         int32_t array_bound = r.read_int();
@@ -355,7 +246,7 @@ namespace xcom
                 array_data_size, array_bound);
     }
 
-    property_list read_properties(reader &r)
+    property_list read_properties(xcom_io &r)
     {
         property_list properties;
         for (;;)
@@ -476,7 +367,7 @@ namespace xcom
         return properties;
     }
 
-    checkpoint_table read_checkpoint_table(reader &r)
+    checkpoint_table read_checkpoint_table(xcom_io &r)
     {
         checkpoint_table checkpoints;
         int32_t checkpoint_count = r.read_int();
@@ -525,7 +416,7 @@ namespace xcom
         return checkpoints;
     }
 
-    actor_template_table read_actor_template_table(reader &r)
+    actor_template_table read_actor_template_table(xcom_io &r)
     {
         actor_template_table template_table;
         int32_t templateCount = r.read_int();
@@ -541,7 +432,7 @@ namespace xcom
         return template_table;
     }
 
-    name_table read_name_table(reader &r)
+    name_table read_name_table(xcom_io &r)
     {
         static unsigned char all_zeros[8] = { 0 };
         name_table names;
@@ -565,7 +456,7 @@ namespace xcom
         return names;
     }
 
-    checkpoint_chunk_table read_checkpoint_chunk_table(reader &r)
+    checkpoint_chunk_table read_checkpoint_chunk_table(xcom_io &r)
     {
         checkpoint_chunk_table checkpoints;
 
@@ -601,14 +492,14 @@ namespace xcom
         return checkpoints;
     }
 
-    size_t calculate_uncompressed_size(reader &r)
+    size_t calculate_uncompressed_size(xcom_io &r)
     {
         // The compressed data begins 1024 bytes into the file.
         //const unsigned char* p = r.start_.get() + 1024;
 
         size_t compressed_size;
         size_t uncompressed_size = 0;
-        r.seek(reader::seek_kind::start, compressed_data_start);
+        r.seek(xcom_io::seek_kind::start, compressed_data_start);
 
         do
         {
@@ -630,13 +521,13 @@ namespace xcom
 
             // Skip to next chunk: include the 8 bytes of header in this chunk we didn't
             // read (which sould be the compressed and uncompressed sizes repeated).
-            r.seek(reader::seek_kind::current, compressed_size + 8);
+            r.seek(xcom_io::seek_kind::current, compressed_size + 8);
         } while (!r.eof());
 
         return uncompressed_size;
     }
 
-    buffer<unsigned char> decompress(reader &r)
+    buffer<unsigned char> decompress(xcom_io &r)
     {
         size_t uncompressed_size = calculate_uncompressed_size(r);
         if (uncompressed_size < 0) {
@@ -645,7 +536,7 @@ namespace xcom
 
         std::unique_ptr<unsigned char[]> buf = std::make_unique<unsigned char[]>(uncompressed_size);
         // Start back at the beginning of the compressed data.
-        r.seek(reader::seek_kind::start, compressed_data_start);
+        r.seek(xcom_io::seek_kind::start, compressed_data_start);
         
         unsigned char *outp = buf.get();
         do
@@ -680,14 +571,14 @@ namespace xcom
 
             // Skip to next chunk - 24 bytes of this chunk header +
             // compressedSize bytes later.
-            r.seek(reader::seek_kind::current, compressed_size + 8);
+            r.seek(xcom_io::seek_kind::current, compressed_size + 8);
             outp += uncompressed_size;
         } while (!r.eof());
 
         return{ std::move(buf), uncompressed_size };
     }
 
-    buffer<unsigned char> reader::uncompressed_data() const
+    buffer<unsigned char> xcom_io::uncompressed_data() const
     {
         std::unique_ptr<unsigned char[]> data = std::make_unique<unsigned char[]>(length_);
         memcpy(data.get(), start_.get(), length_);
@@ -721,22 +612,24 @@ namespace xcom
         return buffer;
     }
 
-    saved_game read_xcom_save(const std::string &infile)
+    saved_game read_xcom_save(buffer<unsigned char>&& b)
     {
         saved_game save;
 
-        buffer<unsigned char> fileBuf = read_file(infile);
-        
-        reader rdr{ std::move(fileBuf) };
+        xcom_io rdr{ std::move(b) };
         save.hdr = read_header(rdr);
-
-        reader uncompressed(decompress(rdr));
-        // We're now done with the compressed file. Swap over to the uncompressed data
-        
+        xcom_io uncompressed(decompress(rdr));
         save.actors = read_actor_table(uncompressed);
         save.checkpoints = read_checkpoint_chunk_table(uncompressed);
-        
+
         return save;
     }
+
+    saved_game read_xcom_save(const std::string &infile)
+    {
+        return read_xcom_save(read_file(infile));
+    }
+
+
 
 } //namespace xcom

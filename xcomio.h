@@ -28,15 +28,25 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 namespace xcom
 {
-    class reader
+    class xcom_io
     {
     public:
-        reader::reader(buffer<unsigned char>&& b) :
+        static const constexpr size_t initial_size = 1024 * 1024;
+
+        xcom_io::xcom_io(buffer<unsigned char>&& b) :
             start_(std::move(b.buf)), length_(b.length)
         {
             ptr_ = start_.get();
         }
 
+        xcom_io::xcom_io()
+        {
+            start_ = std::make_unique<unsigned char[]>(initial_size);
+            ptr_ = start_.get();
+            length_ = initial_size;
+        }
+
+    public:
         buffer<unsigned char> uncompressed_data() const;
         saved_game save_data();
 
@@ -58,11 +68,20 @@ namespace xcom
             return static_cast<size_t>(offset()) >= length_;
         }
 
+        buffer<unsigned char> release() {
+            buffer<unsigned char> b = { std::move(start_), length_ };
+            start_.reset();
+            length_ = 0;
+            return b;
+        }
+
         enum class seek_kind {
             start,
             current,
             end
         };
+
+        uint32_t crc(size_t length);
 
         void seek(seek_kind k, size_t offset);
         int32_t read_int();
@@ -74,20 +93,15 @@ namespace xcom
         std::unique_ptr<unsigned char[]> read_raw_bytes(size_t count);
         void read_raw_bytes(size_t count, unsigned char *outp);
 
-        uint32_t crc(size_t length);
-#if 0
-        header read_header();
-        actor_table read_actor_table();
-        checkpoint_table read_checkpoint_table();
-        std::vector<std::unique_ptr<property>> read_properties();
-        property_ptr make_array_property(const std::string& name, int32_t propSize);
-        property_ptr make_struct_property(const std::string& name);
-        actor_template_table read_actor_template_table();
-        name_table read_name_table();
-        size_t calculate_uncompressed_size();
-        buffer<unsigned char> decompress();
-#endif
-    private:
+        void ensure(size_t count);
+        void write_string(const std::string& str);
+        void write_unicode_string(const xcom_string &str);
+        void write_int(int32_t val);
+        void write_float(float val);
+        void write_bool(bool b);
+        void write_byte(unsigned char c);
+        void write_raw(unsigned char *buf, size_t len);
+    protected:
         std::unique_ptr<unsigned char[]> start_;
         unsigned char *ptr_;
         size_t length_;

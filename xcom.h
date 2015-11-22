@@ -693,7 +693,9 @@ namespace xcom
     };
 
     saved_game read_xcom_save(const std::string &infile);
+    saved_game read_xcom_save(buffer<unsigned char>&& buf);
     void write_xcom_save(const saved_game &save, const std::string &outfile);
+    buffer<unsigned char> write_xcom_save(const saved_game &save);
 
 } // namespace xcom
 #endif // XCOM_H

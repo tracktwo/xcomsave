@@ -1,6 +1,5 @@
 
 #include "xcom.h"
-#include "xcomreader.h"
 #include "util.h"
 
 #include <string>
