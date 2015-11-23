@@ -77,12 +77,12 @@ namespace xcom
     // four zero bytes immediately following it. The second 4-byte integer
     // is the CRC32 of the header data itself. e.g.:
     //
-    // 0		: Header Data (version through language)
-    // N		: CRC32 of compressed data
+    // 0        : Header Data (version through language)
+    // N        : CRC32 of compressed data
     // N+4-1016 : Zeros
-    // 1016		: Number of bytes of header checksummed (N + 4).
-    // 1020		: CRC32 of the first N+4 bytes of header.
-    // 1024-end	: Compressed data
+    // 1016     : Number of bytes of header checksummed (N + 4).
+    // 1020     : CRC32 of the first N+4 bytes of header.
+    // 1024-end : Compressed data
     struct header
     {
         // XCom save version (always 0x10)
@@ -148,6 +148,13 @@ namespace xcom
     // to "know" the real type of the object by looking in the corresponding
     // UPK file. Array data is represented as an array of ints, but may need to
     // be cast to floats if appropriate.
+    //
+    // StructArrayProperty - An array of structs. The name of the struct itself
+    // isn't recorded in the save, it's only visible in the UPK, so it is represented
+    // as an array of unnamed structs. Since structs may have default values, even 
+    // though all elements of the array must have the same struct type the actual
+    // properties present might be different for each element as some may be missing
+    // and use the default value.
     //
     // ArrayProperty - An array of something else. Strings/enums are the typical
     // case but they are not yet completely handled.

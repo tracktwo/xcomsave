@@ -29,7 +29,6 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 namespace xcom
 {
-
     static const size_t compressed_data_start = 1024;
 
     property_list read_properties(xcom_io &r);
@@ -576,13 +575,6 @@ namespace xcom
         } while (!r.eof());
 
         return{ std::move(buf), uncompressed_size };
-    }
-
-    buffer<unsigned char> xcom_io::uncompressed_data() const
-    {
-        std::unique_ptr<unsigned char[]> data = std::make_unique<unsigned char[]>(length_);
-        memcpy(data.get(), start_.get(), length_);
-        return{ std::move(data), length_ };
     }
 
     buffer<unsigned char> read_file(const std::string& filename)
