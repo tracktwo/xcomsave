@@ -296,6 +296,7 @@ namespace xcom
         case property::kind_t::number_array_property:
         case property::kind_t::struct_array_property:
         case property::kind_t::string_array_property:
+        case property::kind_t::enum_array_property:
             return "ArrayProperty";
         case property::kind_t::static_array_property: return "StaticArrayProperty";
         default:
@@ -310,21 +311,30 @@ namespace xcom
         return property_kind_to_string(kind);
     }
 
-    size_t string_property::size() const
+    static size_t xcom_string_size(const xcom_string& s)
     {
-        if (str.str.empty()) {
+        if (s.str.empty()) {
+            // Empty strings are always 4 bytes (for the length)
             return 4;
         }
 
-        if (str.is_wide) {
-            std::u16string tmp16 = util::utf8_to_utf16(str.str);
+        if (s.is_wide) {
+            // Wide string: convert from UTF-8 to UTF16 and return the length of the string * 2 for
+            // the character data, plus 4 for the length int, plus 2 for the trailing null character.
+            std::u16string tmp16 = util::utf8_to_utf16(s.str);
             return 6 + 2 * tmp16.length();
         }
         else {
-            // 4 for string length + 1 for terminating null. Make sure to use the ISO-8859-1 encoded length!
-            std::string tmp = util::utf8_to_iso8859_1(str.str);
+            // Narrow string: convert from UTF-8 to ISO-8859-1 and return the length of the string
+            // plus 4 for the length int plus 1 for the trailing null character.
+            std::string tmp = util::utf8_to_iso8859_1(s.str);
             return tmp.length() + 5;
         }
+    }
+
+    size_t string_property::size() const
+    {
+        return xcom_string_size(str);
     }
 
     size_t struct_property::full_size() const
@@ -353,7 +363,7 @@ namespace xcom
         }
     }
 
-    size_t string_array_property::size() const
+    size_t enum_array_property::size() const
     {
         size_t total = 4; // the array bound
 
@@ -366,6 +376,17 @@ namespace xcom
                 total += 9 + tmp.length(); // non-empty strings have length 4 + string length for the string + 1 for
                                            // the terminating null + 4 for the zero word following the string.
             }
+        }
+
+        return total;
+    }
+
+    size_t string_array_property::size() const
+    {
+        size_t total = 4; // the array bound
+
+        for (const xcom_string &s : elements) {
+            total += xcom_string_size(s);
         }
 
         return total;

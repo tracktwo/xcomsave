@@ -318,8 +318,8 @@ struct json_property_visitor : public property_visitor
         write_common(prop);
         w.write_key("elements");
         w.begin_array(true);
-        for (unsigned int i = 0; i < prop->elements.size(); ++i) {
-            w.write_raw_int(prop->elements[i], true);
+        for (int32_t v : prop->elements) {
+            w.write_raw_int(v, true);
         }
         w.end_array();
         w.end_object();
@@ -330,9 +330,27 @@ struct json_property_visitor : public property_visitor
         w.begin_object();
         write_common(prop);
         w.write_key("strings");
+        w.begin_array();
+        for (const xcom_string& s : prop->elements) {
+            w.begin_object();
+            if (s.is_wide) {
+                w.write_bool("wide", true, true);
+            }
+            w.write_string("value", s.str);
+            w.end_object();
+        }
+        w.end_array();
+        w.end_object();
+    }
+
+    virtual void visit(enum_array_property *prop) override
+    {
+        w.begin_object();
+        write_common(prop);
+        w.write_key("enum_values");
         w.begin_array(true);
-        for (unsigned int i = 0; i < prop->elements.size(); ++i) {
-            w.write_raw_string(prop->elements[i], true);
+        for (const std::string& s : prop->elements) {
+            w.write_raw_string(s, true);
         }
         w.end_array();
         w.end_object();

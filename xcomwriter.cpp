@@ -170,7 +170,16 @@ namespace xcom
         {
             io_.write_int(prop->elements.size());
             for (size_t i = 0; i < prop->elements.size(); ++i) {
+                io_.write_unicode_string(prop->elements[i]);
+            }
+        }
+
+        virtual void visit(enum_array_property* prop) override
+        {
+            io_.write_int(prop->elements.size());
+            for (size_t i = 0; i < prop->elements.size(); ++i) {
                 io_.write_string(prop->elements[i]);
+                io_.write_int(0);
             }
         }
 

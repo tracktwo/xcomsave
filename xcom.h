@@ -174,6 +174,7 @@ namespace xcom
             number_array_property,
             struct_array_property,
             string_array_property,
+            enum_array_property,
             static_array_property,
             last_property
         };
@@ -205,6 +206,7 @@ namespace xcom
     struct number_array_property;
     struct struct_array_property;
     struct string_array_property;
+    struct enum_array_property;
     struct static_array_property;
 
     // Visit all property types.
@@ -222,6 +224,7 @@ namespace xcom
         virtual void visit(number_array_property*) = 0;
         virtual void visit(struct_array_property*) = 0;
         virtual void visit(string_array_property*) = 0;
+        virtual void visit(enum_array_property*) = 0;
         virtual void visit(static_array_property*) = 0;
     };
 
@@ -366,8 +369,8 @@ namespace xcom
     // in the actor table.
     struct object_array_property : public property
     {
-        object_array_property(const std::string& n, std::vector<int32_t> objs) :
-            property(n, kind_t::object_array_property), elements(objs) {}
+        object_array_property(const std::string& n, std::vector<int32_t>&& objs) :
+            property(n, kind_t::object_array_property), elements(std::move(objs)) {}
 
         virtual size_t size() const {
             return 4 + 8 * elements.size();
@@ -387,8 +390,8 @@ namespace xcom
     // values.
     struct number_array_property : public property
     {
-        number_array_property(const std::string& n, std::vector<int32_t> objs) :
-            property(n, kind_t::number_array_property), elements(objs) {}
+        number_array_property(const std::string& n, std::vector<int32_t> && objs) :
+            property(n, kind_t::number_array_property), elements(std::move(objs)) {}
 
         virtual size_t size() const {
             return 4 + 4 * elements.size();
@@ -412,7 +415,7 @@ namespace xcom
     // is the set union of all properties across all the elements in the array.
     struct struct_array_property : public property
     {
-        struct_array_property(const std::string &n, std::vector<property_list> props) :
+        struct_array_property(const std::string &n, std::vector<property_list>&& props) :
             property(n, kind_t::struct_array_property), elements(std::move(props)) {}
 
         virtual size_t size() const {
@@ -437,15 +440,30 @@ namespace xcom
         std::vector<property_list> elements;
     };
 
-    // A string array property. This can be either an array of strings or an
-    // array of enums, and it's not in general possible to determine which
-    // without looking at the UPK checkpoint definition. The elements are
-    // represented as an array of strings, but these may actually hold enum
-    // value strings of an unknown enum type.
+    // A string array property. Elements are all strings, each individual string
+    // in the array may be narrow or wide. Like all strings, they are always internally
+    // represented in UTF-8, though.
     struct string_array_property : public property
     {
-        string_array_property(const std::string& n, std::vector<std::string> objs) :
-            property(n, kind_t::string_array_property), elements(objs) {}
+        string_array_property(const std::string& n, std::vector<xcom_string> &&objs) :
+            property(n, kind_t::string_array_property), elements(std::move(objs)) {}
+
+        virtual size_t size() const;
+
+        virtual void accept(property_visitor *v) {
+            v->visit(this);
+        }
+
+        std::vector<xcom_string> elements;
+    };
+
+    // An enum array property. Elements are string values consisting of enum member
+    // names for some unknown enum type. The enum type is not recorded by the array
+    // and is only known by looking in the UPK.
+    struct enum_array_property : public property
+    {
+        enum_array_property(const std::string& n, std::vector<std::string>&& objs) :
+            property(n, kind_t::enum_array_property), elements(std::move(objs)) {}
 
         virtual size_t size() const;
 

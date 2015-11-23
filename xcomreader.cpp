@@ -133,10 +133,11 @@ namespace xcom
         }
     }
 
-    // Determine if this is a struct or string property. Returns
-    // struct_array_property if it's a struct array, string_array_property if
-    // it's a string/enum array, or last_array_property if it's neither.
-    static property::kind_t is_struct_or_string_property(xcom_io &r,
+    // Try to determine what the element type of this array is. Returns one of:
+    // struct_array_property, string_array_property, or enum_array property if it
+    // can successfully determine what kind of array it is, or last_array_property
+    // if it cannot determine.
+    static property::kind_t determine_array_property_kind(xcom_io &r,
             uint32_t array_data_size)
     {
         // Save the current position so we can rewind to it
@@ -152,8 +153,20 @@ namespace xcom
         // Sniff the first part of the array data to see if it looks like a string.
         int32_t str_length = r.read_int();
         if (str_length > 0 && static_cast<size_t>(str_length) < array_data_size) {
-            // Skip over the string data, and zero int.
-            r.seek(xcom_io::seek_kind::current, str_length + 4);
+            // Skip over the string data.
+            r.seek(xcom_io::seek_kind::current, str_length);
+            // Look at the next value as an integer. For structs and enums, we expect
+            // a zero byte here. For string arrays, the next element begins immediately.
+            // If we found a non-zero value this must be an array of strings.
+            //
+            // Note: embedded empty strings in the array may screw up this detection logic!
+            // I haven't encountered this in a real save yet, though. In that case we'll
+            // probably have to walk the entire array to distinguish an array of empty
+            // strings from an array of enum values.
+            int32_t tmp_int = r.read_int();
+            if (tmp_int != 0) {
+                return property::kind_t::string_array_property;
+            }
             str_length = r.read_int();
             if (str_length > 0 && static_cast<size_t>(str_length) < array_data_size) {
                 const char * str = reinterpret_cast<const char *>(r.pointer());
@@ -167,10 +180,11 @@ namespace xcom
                 }
             }
 
-            // Doesn't look like a struct. This is likely an enum (or string?)
-            return property::kind_t::string_array_property;
+            // Doesn't look like a struct or string. This is likely an enum
+            return property::kind_t::enum_array_property;
         }
 
+        // Unknown kind.
         return property::kind_t::last_property;
     }
 
@@ -182,8 +196,13 @@ namespace xcom
         std::unique_ptr<unsigned char[]> array_data;
         int array_data_size = property_size - 4;
         if (array_data_size > 0) {
+            // Try to figure out what's in the array. Some kinds are easy to determine without inspecting
+            // the array contents, failing that we need to inspect the contents to try to determine the
+            // kind. 
+            
             if (array_bound * 8 == array_data_size) {
-                // Looks like an array of objects
+                // If the array data size is exactly 8x the array bound, we have an array of objects where
+                // each element is an actor id.
                 std::vector<int32_t> elements;
                 for (int32_t i = 0; i < array_bound; ++i) {
                     int32_t actor1 = r.read_int();
@@ -199,50 +218,62 @@ namespace xcom
                         elements.push_back(actor1 / 2);
                     }
                 }
-                return std::make_unique<object_array_property>(name, elements);
+                return std::make_unique<object_array_property>(name, std::move(elements));
             }
             else if (array_bound * 4 == array_data_size) {
-                // Looks like an array of ints or floats
+                // If the array data size is exactly 4x the number of elements this is an array
+                // of numbers. We can't tell if they're ints or floats without looking at the UPK, though.
+                // Even guessing based on the numbers themselves is ambiguous for an array of all zeros.
                 std::vector<int32_t> elems;
                 for (int i = 0; i < array_bound; ++i) {
                     elems.push_back(r.read_int());
                 }
 
-                return std::make_unique<number_array_property>(name, elems);
+                return std::make_unique<number_array_property>(name, std::move(elems));
             }
             else {
-                property::kind_t kind = is_struct_or_string_property(r, array_data_size);
-                if (kind == property::kind_t::struct_array_property) {
+                property::kind_t kind = determine_array_property_kind(r, array_data_size);
+                switch (kind) {
+                case property::kind_t::struct_array_property:
+                {
                     std::vector<property_list> elements;
                     for (int32_t i = 0; i < array_bound; ++i) {
                         elements.push_back(read_properties(r));
                     }
 
                     return std::make_unique<struct_array_property>(name,
-                            std::move(elements));
+                        std::move(elements));
                 }
-#if 0
-                else if (kind == property::kind_t::string_array_property) {
+                case property::kind_t::enum_array_property:
+                {
                     std::vector<std::string> elements;
                     for (int32_t i = 0; i < array_bound; ++i) {
-                        elements.push_back(read_string());
-                        int32_t tmp = read_int();
+                        elements.push_back(r.read_string());
+                        int32_t tmp = r.read_int();
                         if (tmp != 0) {
-                            throw format_exception(offset(), "Read non-zero value after string/enum array element");
+                            throw format_exception(r.offset(), "Read non-zero value after string/enum array element\n");
                         }
+                    }
+
+                    return std::make_unique<enum_array_property>(name, std::move(elements));
+                }
+                case property::kind_t::string_array_property:
+                {
+                    std::vector<xcom_string> elements;
+                    for (int32_t i = 0; i < array_bound; ++i) {
+                        elements.push_back(r.read_unicode_string());
                     }
 
                     return std::make_unique<string_array_property>(name, std::move(elements));
                 }
-#endif
-                else {
+                default:
                     // Nope, dunno what this thing is.
                     array_data = r.read_raw_bytes(array_data_size);
                 }
             }
         }
-        return std::make_unique<array_property>(name, std::move(array_data), 
-                array_data_size, array_bound);
+        return std::make_unique<array_property>(name, std::move(array_data),
+            array_data_size, array_bound);
     }
 
     property_list read_properties(xcom_io &r)
