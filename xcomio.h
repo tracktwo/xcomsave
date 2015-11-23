@@ -38,14 +38,14 @@ namespace xcom
 
         // Construct an xcom_io object from an existing buffer (e.g.
         // a raw save file).
-        xcom_io::xcom_io(buffer<unsigned char>&& b) :
+        xcom_io(buffer<unsigned char>&& b) :
             start_(std::move(b.buf)), length_(b.length)
         {
             ptr_ = start_.get();
         }
 
         // Construct an empty xcom_io object, e.g. for writing a save.
-        xcom_io::xcom_io()
+        xcom_io()
         {
             start_ = std::make_unique<unsigned char[]>(initial_size);
             ptr_ = start_.get();

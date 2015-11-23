@@ -27,7 +27,7 @@ namespace xcom
 {
     struct property_writer_visitor;
 
-    void write_property(xcom_io &w, const property_ptr& prop, int32_t array_index);
+    static void write_property(xcom_io &w, const property_ptr& prop, int32_t array_index);
 
     static void write_header(xcom_io& w, const header& hdr)
     {

@@ -24,6 +24,8 @@ xcomio.cpp - Low-level operations on an xcom io buffer.
 #include "xcom.h"
 #include "xcomio.h"
 
+#include <cstring>
+
 namespace xcom
 {
     void xcom_io::seek(seek_kind k, size_t offset)
@@ -137,7 +139,7 @@ namespace xcom
 
     void xcom_io::ensure(size_t count)
     {
-        ptrdiff_t current_count = offset();
+        std::ptrdiff_t current_count = offset();
 
         if ((current_count + count) > length_) {
             size_t new_length = length_ * 2;
