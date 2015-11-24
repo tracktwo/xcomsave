@@ -242,7 +242,6 @@ namespace xcom
 
 
     // An object property refers to an actor.
-    // TODO Replace the data with the actor references.
     struct object_property : public property
     {
         object_property(const std::string &n, int32_t a) :

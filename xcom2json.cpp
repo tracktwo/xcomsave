@@ -350,7 +350,7 @@ struct json_property_visitor : public property_visitor
         w.write_key("enum_values");
         w.begin_array();
         for (const enum_value& s : prop->elements) {
-            w.begin_object();
+            w.begin_object(true);
             w.write_string("value", s.name, true);
             w.write_int("number", s.number, true);
             w.end_object();
