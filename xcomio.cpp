@@ -77,7 +77,7 @@ namespace xcom
         return s.str;
     }
 
-    xcom_string xcom_io::read_unicode_string()
+    xcom_string xcom_io::read_unicode_string(bool throw_on_error)
     {
         int32_t length = read_int();
         if (length == 0) {
@@ -91,7 +91,12 @@ namespace xcom
 
             // Sanity check
             if ((offset() + static_cast<size_t>(length)) > length_) {
-                throw format_exception(offset(), "read_string found an invalid string length.");
+                if (throw_on_error) {
+                    throw format_exception(offset(), "read_string found an invalid string length.");
+                }
+                else {
+                    return{ "", false };
+                }
             }
             const char16_t *str = reinterpret_cast<const char16_t*>(ptr_);
             ptr_ += 2 * length;
@@ -101,7 +106,12 @@ namespace xcom
 
             // Sanity check
             if ((offset() + static_cast<size_t>(length)) > length_) {
-                throw format_exception(offset(), "read_string found an invalid string length.");
+                if (throw_on_error) {
+                    throw format_exception(offset(), "read_string found an invalid string length.");
+                }
+                else {
+                    return{ "", false };
+                }
             }
 
             const char *str = reinterpret_cast<const char *>(ptr_);
@@ -112,7 +122,12 @@ namespace xcom
             // the file.
             if (actual_length != (length - 1))
             {
-                throw format_exception(offset(), "String mismatch: expected length %d but found %d\n", length, actual_length);
+                if (throw_on_error) {
+                    throw format_exception(offset(), "String mismatch: expected length %d but found %d\n", length, actual_length);
+                }
+                else {
+                    return{ "", false };
+                }
             }
             ptr_ += length;
             return{ util::iso8859_1_to_utf8(str), false };

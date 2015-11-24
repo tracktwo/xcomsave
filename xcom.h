@@ -209,6 +209,15 @@ namespace xcom
     struct enum_array_property;
     struct static_array_property;
 
+    // XCOM enum values are represented by a string enumerator value (e.g. eFoo_Value) and
+    // a corresponding integer. The integer is always 0 for standard enums but LW extended
+    // enums re-use existing value names with successively growing int values.
+    struct enum_value
+    {
+        std::string name;
+        int32_t number;
+    };
+
     // Visit all property types.
     struct property_visitor
     {
@@ -462,7 +471,7 @@ namespace xcom
     // and is only known by looking in the UPK.
     struct enum_array_property : public property
     {
-        enum_array_property(const std::string& n, std::vector<std::string>&& objs) :
+        enum_array_property(const std::string& n, std::vector<enum_value>&& objs) :
             property(n, kind_t::enum_array_property), elements(std::move(objs)) {}
 
         virtual size_t size() const;
@@ -471,7 +480,7 @@ namespace xcom
             v->visit(this);
         }
 
-        std::vector<std::string> elements;
+        std::vector<enum_value> elements;
     };
 
     // An enum property. Contains the enum type and enum value strings, as well
@@ -484,27 +493,26 @@ namespace xcom
     {
         enum_property(const std::string& n, const std::string &et, 
                         const std::string &ev, int32_t i) :
-            property(n, kind_t::enum_property), enum_type(et), 
-            enum_value(ev), extra_value(i) {}
+            property(n, kind_t::enum_property), type(et), 
+            value{ ev, i } {}
 
         size_t size() const {
             // size does not include the size of the enum type string
-            return enum_value.length() + 5 + 4;
+            return value.name.length() + 5 + 4;
         }
 
         virtual size_t full_size() const {
             // full size must also include the length of the inner "unknown"
             // value and the enum Type string length.
-            return property::full_size() + enum_type.length() + 5 + 4;
+            return property::full_size() + type.length() + 5 + 4;
         }
 
         void accept(property_visitor *v) {
             v->visit(this);
         }
 
-        std::string enum_type;
-        std::string enum_value;
-        int32_t extra_value;
+        std::string type;
+        enum_value value;
     };
 
     // A struct property. Contains a nested list of properties for the struct elements.

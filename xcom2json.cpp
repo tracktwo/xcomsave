@@ -254,9 +254,9 @@ struct json_property_visitor : public property_visitor
     {
         w.begin_object();
         write_common(prop);
-        w.write_string("type", prop->enum_type);
-        w.write_string("value", prop->enum_value);
-        w.write_int("extra_value", prop->extra_value);
+        w.write_string("type", prop->type);
+        w.write_string("value", prop->value.name);
+        w.write_int("number", prop->value.number);
         w.end_object();
     }
 
@@ -348,9 +348,12 @@ struct json_property_visitor : public property_visitor
         w.begin_object();
         write_common(prop);
         w.write_key("enum_values");
-        w.begin_array(true);
-        for (const std::string& s : prop->elements) {
-            w.write_raw_string(s, true);
+        w.begin_array();
+        for (const enum_value& s : prop->elements) {
+            w.begin_object();
+            w.write_string("value", s.name, true);
+            w.write_int("number", s.number, true);
+            w.end_object();
         }
         w.end_array();
         w.end_object();

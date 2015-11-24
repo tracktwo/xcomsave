@@ -151,41 +151,45 @@ namespace xcom
         } reset_position(r);
 
         // Sniff the first part of the array data to see if it looks like a string.
-        int32_t str_length = r.read_int();
-        if (str_length > 0 && static_cast<size_t>(str_length) < array_data_size) {
-            // Skip over the string data.
-            r.seek(xcom_io::seek_kind::current, str_length);
-            // Look at the next value as an integer. For structs and enums, we expect
-            // a zero byte here. For string arrays, the next element begins immediately.
-            // If we found a non-zero value this must be an array of strings.
-            //
-            // Note: embedded empty strings in the array may screw up this detection logic!
-            // I haven't encountered this in a real save yet, though. In that case we'll
-            // probably have to walk the entire array to distinguish an array of empty
-            // strings from an array of enum values.
-            int32_t tmp_int = r.read_int();
-            if (tmp_int != 0) {
+        xcom_string s = r.read_unicode_string(false);
+
+        if (s.str.length() == 0)
+        {
+            // Not a string, we don't know what this thing is.
+            return property::kind_t::last_property;
+        }
+
+        // Try to read another string. If we find a non-zero length string this must be
+        // an array of strings. Otherwise it's likely an array of enums or structs.
+        {
+            struct reset_position reset(r);
+            xcom_string s = r.read_unicode_string(false);
+            if (s.str.length() > 0) {
                 return property::kind_t::string_array_property;
             }
-            str_length = r.read_int();
-            if (str_length > 0 && static_cast<size_t>(str_length) < array_data_size) {
-                const char * str = reinterpret_cast<const char *>(r.pointer());
-                if (str[str_length - 1] == 0 && strlen(str) == (str_length - 1))
-                {
-                    for (int i = 0; i < static_cast<int>(property::kind_t::last_property); ++i) {
-                        if (property_kind_to_string(static_cast<property::kind_t>(i)) == str) {
-                            return property::kind_t::struct_array_property;
-                        }
-                    }
+        }
+
+        // We didn't find a string. It should've been an int (0 for structs, or an enum value for
+        // enums).
+        int32_t tmp = r.read_int();
+
+        // Now we should have a string: Either the next enum value for an enum or a property kind
+        // string for a struct property.
+        s = r.read_unicode_string(false);
+        if (s.str.length() > 0) {
+            for (int i = 0; i < static_cast<int>(property::kind_t::last_property); ++i) {
+                if (property_kind_to_string(static_cast<property::kind_t>(i)) == s.str) {
+                    return property::kind_t::struct_array_property;
                 }
             }
 
-            // Doesn't look like a struct or string. This is likely an enum
+            // Not a property name, this should be an enum.
             return property::kind_t::enum_array_property;
         }
-
-        // Unknown kind.
+        
+        // Not a string, we don't know what this thing is.
         return property::kind_t::last_property;
+
     }
 
 
@@ -246,13 +250,11 @@ namespace xcom
                 }
                 case property::kind_t::enum_array_property:
                 {
-                    std::vector<std::string> elements;
+                    std::vector<enum_value> elements;
                     for (int32_t i = 0; i < array_bound; ++i) {
-                        elements.push_back(r.read_string());
-                        int32_t tmp = r.read_int();
-                        if (tmp != 0) {
-                            throw format_exception(r.offset(), "Read non-zero value after string/enum array element\n");
-                        }
+                        std::string name = r.read_string();
+                        int32_t value = r.read_int();
+                        elements.push_back({ name, value });
                     }
 
                     return std::make_unique<enum_array_property>(name, std::move(elements));

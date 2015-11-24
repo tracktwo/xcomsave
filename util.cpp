@@ -367,14 +367,14 @@ namespace xcom
     {
         size_t total = 4; // the array bound
 
-        for (const std::string &s : elements) {
-            if (s.length() == 0) {
-                total += 8; // empty strings have size 4 for the count + 4 for the zero word following the string
+        for (const enum_value &e : elements) {
+            if (e.name.length() == 0) {
+                total += 8; // empty strings have size 4 for the count + 4 for the number following the string
             }
             else {
-                std::string tmp = util::utf8_to_iso8859_1(s);
+                std::string tmp = util::utf8_to_iso8859_1(e.name);
                 total += 9 + tmp.length(); // non-empty strings have length 4 + string length for the string + 1 for
-                                           // the terminating null + 4 for the zero word following the string.
+                                           // the terminating null + 4 for the number following the string.
             }
         }
 

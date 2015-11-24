@@ -223,7 +223,7 @@ property_ptr build_enum_property(const Json& json)
         { "name", Json::STRING },
         { "type", Json::STRING },
         { "value", Json::STRING },
-        { "extra_value", Json::NUMBER }
+        { "number", Json::NUMBER }
     };
 
     if (!json.has_shape(shape, err)) {
@@ -233,7 +233,7 @@ property_ptr build_enum_property(const Json& json)
 
     return std::make_unique<enum_property>(json["name"].string_value(), 
         json["type"].string_value(), json["value"].string_value(), 
-        json["extra_value"].int_value());
+        json["number"].int_value());
 }
 
 property_ptr build_struct_property(const Json& json)
@@ -391,10 +391,12 @@ property_ptr build_enum_array_property(const Json& json)
             "Error reading json file: format mismatch in enum array property\n");
     }
 
-    std::vector<std::string> elements;
+    std::vector<enum_value> elements;
 
     for (const Json& elem : json["enum_values"].array_items()) {
-        elements.push_back(elem.string_value());
+        std::string name = elem["value"].string_value();
+        int32_t number = elem["number"].int_value();
+        elements.push_back({ name, number });
     }
 
     return std::make_unique<enum_array_property>(json["name"].string_value(), std::move(elements));

@@ -114,10 +114,10 @@ namespace xcom
 
         virtual void visit(enum_property *prop) override
         {
-            io_.write_string(prop->enum_type);
+            io_.write_string(prop->type);
             io_.write_int(0);
-            io_.write_string(prop->enum_value);
-            io_.write_int(prop->extra_value);
+            io_.write_string(prop->value.name);
+            io_.write_int(prop->value.number);
         }
 
         virtual void visit(struct_property *prop) override
@@ -178,8 +178,8 @@ namespace xcom
         {
             io_.write_int(prop->elements.size());
             for (size_t i = 0; i < prop->elements.size(); ++i) {
-                io_.write_string(prop->elements[i]);
-                io_.write_int(0);
+                io_.write_string(prop->elements[i].name);
+                io_.write_int(prop->elements[i].number);
             }
         }
 

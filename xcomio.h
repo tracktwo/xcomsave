@@ -111,7 +111,7 @@ namespace xcom
         // string is in UTF-8, but has a corresponding flag indicating
         // whether or not the string must be written to the save as a
         // UTF-16 string.
-        xcom_string read_unicode_string();
+        xcom_string read_unicode_string(bool throw_on_error = true);
 
         // Read a boolean value. Note bools take up 4 bytes in xcom saves.
         bool read_bool();
