@@ -291,6 +291,7 @@ namespace xcom
         case property::kind_t::object_property: return "ObjectProperty";
         case property::kind_t::enum_property: return "ByteProperty";
         case property::kind_t::struct_property: return "StructProperty";
+        case property::kind_t::name_property: return "NameProperty";
         case property::kind_t::array_property:
         case property::kind_t::object_array_property:
         case property::kind_t::number_array_property:

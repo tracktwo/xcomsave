@@ -167,6 +167,7 @@ namespace xcom
             bool_property,
             string_property,
             object_property,
+            name_property,
             enum_property,
             struct_property,
             array_property,
@@ -199,6 +200,7 @@ namespace xcom
     struct bool_property;
     struct string_property;
     struct object_property;
+    struct name_property;
     struct enum_property;
     struct struct_property;
     struct array_property;
@@ -226,6 +228,7 @@ namespace xcom
         virtual void visit(bool_property*) = 0;
         virtual void visit(string_property*) = 0;
         virtual void visit(object_property*) = 0;
+        virtual void visit(name_property*) = 0;
         virtual void visit(enum_property*) = 0;
         virtual void visit(struct_property*) = 0;
         virtual void visit(array_property*) = 0;
@@ -337,6 +340,34 @@ namespace xcom
         }
 
         xcom_string str;
+    };
+
+    // A name property contains a string value referencing an Unreal name entry, and
+    // a number whose use is currently unknown.
+    //
+    // Be careful: the name field of properties refers to the name of the property,
+    // the contents of a name property is in the str field, similar to a string
+    // property.
+    struct name_property : public property
+    {
+        name_property(const std::string& n, const std::string& s, int32_t d) :
+            property(n, kind_t::name_property), str(s), number(d) {}
+
+        virtual void accept(property_visitor *v) {
+            v->visit(this);
+        }
+
+        virtual size_t size() const {
+            // Length of the string + null byte + the string size integer + the
+            // number value.
+            // Note: This is making the (reasonable?) assumption that name strings
+            // can never be empty and the (unreasonable?) assumption that names
+            // are always ASCII.
+            return str.length() + 1 + 4 + 4;
+        }
+
+        std::string str;
+        int32_t number;
     };
 
     // A dynamic array property. Represents an Unreal dynamic array. This type
@@ -496,6 +527,10 @@ namespace xcom
             value{ ev, i } {}
 
         size_t size() const {
+            // Handle the special "None" byte type which is just a single byte.
+            if (type == "None") {
+                return 1;
+            }
             // size does not include the size of the enum type string
             return value.name.length() + 5 + 4;
         }

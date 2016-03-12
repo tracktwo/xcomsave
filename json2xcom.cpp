@@ -23,6 +23,7 @@ property_ptr build_float_property(const Json& json);
 property_ptr build_bool_property(const Json& json);
 property_ptr build_object_property(const Json& json);
 property_ptr build_string_property(const Json& json);
+property_ptr build_name_property(const Json& json);
 property_ptr build_enum_property(const Json& json);
 property_ptr build_struct_property(const Json& json);
 property_ptr build_array_property(const Json& json);
@@ -39,6 +40,7 @@ static property_dispatch dispatch_table[] = {
     { "FloatProperty", build_float_property },
     { "BoolProperty", build_bool_property },
     { "StrProperty", build_string_property },
+    { "NameProperty", build_name_property },
     { "ObjectProperty", build_object_property },
     { "ByteProperty", build_enum_property },
     { "StructProperty", build_struct_property },
@@ -197,6 +199,24 @@ property_ptr build_string_property(const Json& json)
   
     return std::make_unique<string_property>(json["name"].string_value(), 
         xcom_string{ json["value"].string_value(), wide });
+}
+
+property_ptr build_name_property(const Json& json)
+{
+    std::string err;
+    Json::shape shape = {
+        { "name", Json::STRING },
+        { "string", Json::STRING },
+        { "number", Json::NUMBER }
+    };
+
+    if (!json.has_shape(shape, err)) {
+        throw std::runtime_error(
+            "Error reading json file: format mismatch in name property");
+    }
+
+    return std::make_unique<name_property>(json["name"].string_value(),
+        json["string"].string_value(), json["number"].int_value());
 }
 
 property_ptr build_object_property(const Json& json)

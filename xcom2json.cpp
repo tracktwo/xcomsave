@@ -242,6 +242,15 @@ struct json_property_visitor : public property_visitor
         w.end_object();
     }
 
+    virtual void visit(name_property *prop) override
+    {
+        w.begin_object(true);
+        write_common(prop, true);
+        w.write_string("string", prop->str, true);
+        w.write_int("number", prop->number, true);
+        w.end_object();
+    }
+
     virtual void visit(object_property *prop) override
     {
         w.begin_object(true);

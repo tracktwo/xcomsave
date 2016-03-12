@@ -100,6 +100,12 @@ namespace xcom
             io_.write_unicode_string(prop->str);
         }
 
+        virtual void visit(name_property *prop) override
+        {
+            io_.write_string(prop->str);
+            io_.write_int(prop->number);
+        }
+
         virtual void visit(object_property *prop) override
         {
             if (prop->actor == 0xffffffff) {
@@ -116,8 +122,13 @@ namespace xcom
         {
             io_.write_string(prop->type);
             io_.write_int(0);
-            io_.write_string(prop->value.name);
-            io_.write_int(prop->value.number);
+            if (prop->type == "None") {
+                io_.write_byte(prop->value.number);
+            }
+            else {
+                io_.write_string(prop->value.name);
+                io_.write_int(prop->value.number);
+            }
         }
 
         virtual void visit(struct_property *prop) override

@@ -126,6 +126,20 @@ namespace xcom
             return std::make_unique<struct_property>(name, struct_name, 
                     r.read_raw_bytes(12), 12);
         }
+        else if (struct_name.compare("Rotator") == 0) {
+            return std::make_unique<struct_property>(name, struct_name,
+                r.read_raw_bytes(12), 12);
+        }
+        else if (struct_name.compare("Box") == 0) {
+            // A "box" type. Unknown contents but always 25 bytes long
+            return std::make_unique<struct_property>(name, struct_name,
+                r.read_raw_bytes(25), 25);
+        }
+        else if (struct_name.compare("Color") == 0) {
+            // A Color type. Unknown contents (4 bytes)
+            return std::make_unique<struct_property>(name, struct_name,
+                r.read_raw_bytes(4), 4);
+        }
         else {
             property_list structProps = read_properties(r);
             return std::make_unique<struct_property>(name, struct_name, 
@@ -157,6 +171,13 @@ namespace xcom
         {
             // Not a string, we don't know what this thing is.
             return property::kind_t::last_property;
+        }
+
+        // If the first thing we get is a "None", then this is a struct
+        // property with all default values in the first element.
+        if (s.str.compare("None") == 0)
+        {
+            return property::kind_t::struct_array_property;
         }
 
         // Try to read another string. If we find a non-zero length string this must be
@@ -293,6 +314,7 @@ namespace xcom
             if (name.compare("None") == 0) {
                 break;
             }
+
             std::string prop_type = r.read_string();
             int32_t unknown2 = r.read_int();
             if (unknown2 != 0) {
@@ -328,10 +350,20 @@ namespace xcom
                             "Read non-zero enum property unknown value: %x\n", 
                             inner_unknown);
                 }
-                std::string enum_val = r.read_string();
-                int32_t extra_val = r.read_int();
-                prop = std::make_unique<enum_property>(name, enum_type, 
+                if (enum_type == "None") {
+                    // Sigh. ByteProperty can be an enum value, or can just
+                    // be a raw byte if the "type" field is "None". Read just
+                    // a single byte and use that as the "extra" value.
+                    unsigned char c = r.read_byte();
+                    prop = std::make_unique<enum_property>(name, enum_type,
+                        "None", c);
+                }
+                else {
+                    std::string enum_val = r.read_string();
+                    int32_t extra_val = r.read_int();
+                    prop = std::make_unique<enum_property>(name, enum_type,
                         enum_val, extra_val);
+                }
             }
             else if (prop_type.compare("BoolProperty") == 0) {
                 assert(prop_size == 0);
@@ -352,6 +384,11 @@ namespace xcom
                 xcom_string str = r.read_unicode_string();
                 prop = std::make_unique<string_property>(name, str);
             }
+            else if (prop_type.compare("NameProperty") == 0) {
+                std::string str = r.read_string();
+                int32_t number = r.read_int();
+                prop = std::make_unique<name_property>(name, str, number);
+            }
             else
             {
                 throw format_exception(r.offset(), 
@@ -364,22 +401,28 @@ namespace xcom
                     properties.push_back(std::move(prop));
                 }
                 else {
+#if 0
                     if (properties.back()->name.compare(name) != 0) {
                         throw format_exception(r.offset(), 
                                 "Static array index found but doesn't match previous property\n");
                     }
+#endif
 
                     if (properties.back()->kind == property::kind_t::static_array_property) {
                         // We already have a static array. Sanity check the
                         // array index and add it
                         static_array_property *static_array = 
                                 static_cast<static_array_property*>(properties.back().get());
+#if 0
                         assert(array_index == static_array->properties.size());
+#endif
                         static_array->properties.push_back(std::move(prop));
                     }
                     else {
                         // Not yet a static array. This new property should have index 1.
+#if 0
                         assert(array_index == 1);
+#endif
 
                         // Pop off the old property
                         property_ptr last_property = std::move(properties.back());
@@ -491,7 +534,8 @@ namespace xcom
     checkpoint_chunk_table read_checkpoint_chunk_table(xcom_io &r)
     {
         checkpoint_chunk_table checkpoints;
-
+        std::vector<name_table> name_tables;
+        std::vector<actor_template_table> actor_templates;
         // Read the checkpoint chunks
         do {
             checkpoint_chunk chunk;
@@ -507,13 +551,17 @@ namespace xcom
             chunk.unknown_int2 = r.read_int();
             chunk.checkpoints = read_checkpoint_table(r);
             int32_t name_table_length = r.read_int();
-            assert(name_table_length == 0);
+           // assert(name_table_length == 0);
+            //TODO
+            if (name_table_length > 0) {
+                name_tables.push_back(read_name_table(r));
+            }
             chunk.class_name = r.read_string();
             chunk.actors = read_actor_table(r);
             chunk.unknown_int3 = r.read_int();
             // (only seems to be present for tactical saves?)
-            actor_template_table actor_templates = read_actor_template_table(r);
-            assert(actor_templates.size() == 0);
+            actor_templates.push_back(read_actor_template_table(r));
+           // assert(actor_templates.size() == 0);
             chunk.display_name = r.read_string(); //unknown (game name)
             chunk.map_name = r.read_string(); //unknown (map name)
             chunk.unknown_int4 = r.read_int(); //unknown  (checksum?)
@@ -643,7 +691,12 @@ namespace xcom
 
         xcom_io rdr{ std::move(b) };
         save.hdr = read_header(rdr);
-        xcom_io uncompressed(decompress(rdr));
+        buffer<unsigned char> uncompressed_buf = decompress(rdr);
+        
+        FILE *fp = fopen("output.dat", "wb");
+        fwrite(uncompressed_buf.buf.get(), 1, uncompressed_buf.length, fp);
+        fclose(fp);
+        xcom_io uncompressed(std::move(uncompressed_buf));
         save.actors = read_actor_table(uncompressed);
         save.checkpoints = read_checkpoint_chunk_table(uncompressed);
 
