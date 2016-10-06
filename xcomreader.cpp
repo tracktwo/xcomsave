@@ -692,10 +692,11 @@ namespace xcom
         xcom_io rdr{ std::move(b) };
         save.hdr = read_header(rdr);
         buffer<unsigned char> uncompressed_buf = decompress(rdr);
-        
+#ifdef _DEBUG
         FILE *fp = fopen("output.dat", "wb");
         fwrite(uncompressed_buf.buf.get(), 1, uncompressed_buf.length, fp);
         fclose(fp);
+#endif
         xcom_io uncompressed(std::move(uncompressed_buf));
         save.actors = read_actor_table(uncompressed);
         save.checkpoints = read_checkpoint_chunk_table(uncompressed);
