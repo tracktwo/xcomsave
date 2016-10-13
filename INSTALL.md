@@ -5,4 +5,4 @@ This guide assumes that your Operating System is Linux (Should be the same on *B
 2. Clone json11: `rm -rf json11;git clone https://github.com/dropbox/json11.git`
 3. Build xcomsave: `mkdir build; cd build; cmake ../.;`
 4. Compile: `make; cd ..`
-5. Copy json2xcom and xcom2json to a new directory. Those are the only files you need.
+5. Copy **json2xcom** and **xcom2json** to a new directory. Those are the only files you need.
