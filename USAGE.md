@@ -12,6 +12,7 @@ The result will be an editable text file.
 
 # json2xcom
 Use `json2xcom <savegame_file>.json`.
+
 You may use the "o" option to define the output file name: `json2xcom -o <output> <savegame_file>.json`
 
 **Note**: XCOM:EW savegame files have no extension.
