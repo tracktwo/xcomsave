@@ -99,7 +99,7 @@ namespace xcom
         int32_t save_number;
 
         // The readable save description. This appears in the load game list.
-        std::string save_description;
+        xcom_string save_description;
 
         // The date and time of the save
         std::string time;

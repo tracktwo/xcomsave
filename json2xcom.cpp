@@ -76,7 +76,8 @@ header build_header(const Json& json)
     hdr.uncompressed_size = json["uncompressed_size"].int_value();
     hdr.game_number = json["game_number"].int_value();
     hdr.save_number = json["save_number"].int_value();
-    hdr.save_description = json["save_description"].string_value();
+    bool wide_desc = json["save_description_is_wide"].bool_value();
+    hdr.save_description = xcom_string{ json["save_description"].string_value(), wide_desc };
     hdr.time = json["time"].string_value();
     hdr.map_command = json["map_command"].string_value();
     hdr.tactical_save = json["tactical_save"].bool_value();

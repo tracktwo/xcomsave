@@ -152,7 +152,7 @@ struct json_writer
     void write_float(const std::string &name, float val, bool omit_newline = false)
     {
         write_key(name);
-        out << val;
+        out << (val + 0.0f);
         end_item(omit_newline);
     }
 
@@ -523,7 +523,8 @@ void buildJson(const saved_game& save, json_writer& w)
     w.write_int("uncompressed_size", hdr.uncompressed_size);
     w.write_int("game_number", hdr.game_number);
     w.write_int("save_number", hdr.save_number);
-    w.write_string("save_description", hdr.save_description);
+    w.write_bool("save_description_is_wide", hdr.save_description.is_wide);
+    w.write_string("save_description", hdr.save_description.str);
     w.write_string("time", hdr.time);
     w.write_string("map_command", hdr.map_command);
     w.write_bool("tactical_save", hdr.tactical_save);
