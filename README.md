@@ -7,6 +7,8 @@ Currently only strategy (geoscape) saves are supported. Tactical saves have a sl
 completely parse yet. This has also only been tested with the English version of the game. Other locales may or
 may not successfully load. Please send me a save file if you have trouble and I can attempt a fix!
 
+For Enemy Unknown saves, please see the fork by golinski: https://github.com/golinski/xcomsave. 
+
 ## JSON Utilities
 
 The xcom2json and json2xcom tools convert to and from a JSON representation of the save file. No real processing is done
