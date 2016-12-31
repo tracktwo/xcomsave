@@ -4,8 +4,9 @@ An open-source, portable library for reading XCOM Enemy Within save files, plus 
 XCOM save to and from a somewhat readable JSON format.
 
 Currently only strategy (geoscape) saves are supported. Tactical saves have a slightly different format that I can't
-completely parse yet. This has also only been tested with the English version of the game. Other locales may or
-may not successfully load. Please send me a save file if you have trouble and I can attempt a fix!
+completely parse yet. I don't have exhaustive save samples for most languages, but I have used to this to successfully
+read and write English, German, and Russian saves. If you encounter errors reading or writing a save with another language
+please let me know.
 
 For Enemy Unknown saves, please see the fork by golinski: https://github.com/golinski/xcomsave. 
 
