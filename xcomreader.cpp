@@ -47,7 +47,7 @@ namespace xcom
         hdr.game_number = r.read_int();
         hdr.save_number = r.read_int();
         hdr.save_description = r.read_unicode_string();
-        hdr.time = r.read_string();
+        hdr.time = r.read_unicode_string().str;
         hdr.map_command = r.read_string();
         hdr.tactical_save = r.read_bool();
         hdr.ironman = r.read_bool();
