@@ -36,7 +36,7 @@ namespace xcom
         w.write_int(hdr.game_number);
         w.write_int(hdr.save_number);
         w.write_unicode_string(hdr.save_description);
-        w.write_string(hdr.time);
+        w.write_unicode_string({hdr.time, true});
         w.write_string(hdr.map_command);
         w.write_bool(hdr.tactical_save);
         w.write_bool(hdr.ironman);
