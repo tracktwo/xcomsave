@@ -31,9 +31,13 @@ tested to work on Windows and Linux. Mac support should be straightforward to ad
 
 ### All Platforms
 
+
+
 CMake is needed for all platforms. Run it on the provided CMakeLists.txt file to build the project/build files for your 
 platform. I recommend running it from a subdirectory (e.g. build) so it doesn't pollute the main repo with build
 artifacts.
+
+Use `git clone --recursive ` to obtain the source otherwise submodule `json11` will disappear.
 
 ### Windows
 
