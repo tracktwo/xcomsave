@@ -171,6 +171,23 @@ struct json_writer
         end_item(omit_newline);
     }
 
+    void write_unicode_string(const std::string& name, const xcom_string& str, bool omit_newline = false)
+    {
+        write_key(name);
+        begin_object(true);
+        write_string("str", str.str, true);
+        write_bool("is_wide", str.is_wide, true);
+        end_object();
+    }
+
+    void write_raw_unicode_string(const xcom_string& str, bool omit_newline = false)
+    {
+        begin_object(true);
+        write_string("str", str.str, true);
+        write_bool("is_wide", str.is_wide, true);
+        end_object();
+    }
+
     void write_raw_string(const std::string& val, bool omit_newline = false)
     {
         indent();
@@ -235,10 +252,7 @@ struct json_property_visitor : public property_visitor
     {
         w.begin_object(true);
         write_common(prop, true);
-        if (prop->str.is_wide) {
-            w.write_bool("wide", true, true);
-        }
-        w.write_string("value", prop->str.str, true);
+        w.write_unicode_string("value", prop->str);
         w.end_object();
     }
 
@@ -341,12 +355,7 @@ struct json_property_visitor : public property_visitor
         w.write_key("strings");
         w.begin_array();
         for (const xcom_string& s : prop->elements) {
-            w.begin_object();
-            if (s.is_wide) {
-                w.write_bool("wide", true, true);
-            }
-            w.write_string("value", s.str);
-            w.end_object();
+            w.write_raw_unicode_string(s);
         }
         w.end_array();
         w.end_object();
@@ -523,9 +532,8 @@ void buildJson(const saved_game& save, json_writer& w)
     w.write_int("uncompressed_size", hdr.uncompressed_size);
     w.write_int("game_number", hdr.game_number);
     w.write_int("save_number", hdr.save_number);
-    w.write_bool("save_description_is_wide", hdr.save_description.is_wide);
-    w.write_string("save_description", hdr.save_description.str);
-    w.write_string("time", hdr.time);
+    w.write_unicode_string("save_description", hdr.save_description);
+    w.write_unicode_string("time", hdr.time);
     w.write_string("map_command", hdr.map_command);
     w.write_bool("tactical_save", hdr.tactical_save);
     w.write_bool("ironman", hdr.ironman);

@@ -48,6 +48,22 @@ static property_dispatch dispatch_table[] = {
     { "StaticArrayProperty", build_static_array_property }
 };
 
+xcom_string build_unicode_string(const Json& json)
+{
+    Json::shape shape = {
+        { "str", Json::STRING },
+        { "is_wide", Json::BOOL }
+    };
+
+    std::string err;
+    if (!json.has_shape(shape, err)) {
+        throw std::runtime_error(
+            "Error reading unicode string: format does not match\n");
+    }
+
+    return xcom_string{ json["str"].string_value(), json["is_wide"].bool_value() };
+}
+
 header build_header(const Json& json)
 {
     header hdr;
@@ -56,8 +72,8 @@ header build_header(const Json& json)
         { "uncompressed_size", Json::NUMBER },
         { "game_number", Json::NUMBER },
         { "save_number", Json::NUMBER },
-        { "save_description", Json::STRING },
-        { "time", Json::STRING },
+        { "save_description", Json::OBJECT },
+        { "time", Json::OBJECT },
         { "map_command", Json::STRING },
         { "tactical_save", Json::BOOL },
         { "ironman", Json::BOOL },
@@ -76,9 +92,8 @@ header build_header(const Json& json)
     hdr.uncompressed_size = json["uncompressed_size"].int_value();
     hdr.game_number = json["game_number"].int_value();
     hdr.save_number = json["save_number"].int_value();
-    bool wide_desc = json["save_description_is_wide"].bool_value();
-    hdr.save_description = xcom_string{ json["save_description"].string_value(), wide_desc };
-    hdr.time = json["time"].string_value();
+    hdr.save_description = build_unicode_string(json["save_description"]);
+    hdr.time = build_unicode_string(json["time"]);
     hdr.map_command = json["map_command"].string_value();
     hdr.tactical_save = json["tactical_save"].bool_value();
     hdr.ironman = json["ironman"].bool_value();
@@ -188,18 +203,15 @@ property_ptr build_string_property(const Json& json)
     std::string err;
     Json::shape shape = {
         { "name", Json::STRING },
-        { "value", Json::STRING }
+        { "value", Json::OBJECT }
     };
 
     if (!json.has_shape(shape, err)) {
         throw std::runtime_error(
             "Error reading json file: format mismatch in string property");
     }
-
-    bool wide = (json["wide"] != Json() && json["wide"].bool_value());
-  
-    return std::make_unique<string_property>(json["name"].string_value(), 
-        xcom_string{ json["value"].string_value(), wide });
+    return std::make_unique<string_property>(json["name"].string_value(),
+        build_unicode_string(json["value"]));
 }
 
 property_ptr build_name_property(const Json& json)
@@ -391,9 +403,7 @@ property_ptr build_string_array_property(const Json& json)
     std::vector<xcom_string> elements;
 
     for (const Json& elem : json["strings"].array_items()) {
-        bool wide = (elem["wide"] != Json() && elem["wide"].bool_value());
-
-        elements.push_back(xcom_string{ elem["value"].string_value(), wide });
+        elements.push_back(build_unicode_string(elem));
     }
 
     return std::make_unique<string_array_property>(json["name"].string_value(), std::move(elements));

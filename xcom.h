@@ -102,7 +102,7 @@ namespace xcom
         xcom_string save_description;
 
         // The date and time of the save
-        std::string time;
+        xcom_string time;
 
         // The map to load for this save
         std::string map_command;
