@@ -11,13 +11,14 @@ endif (UNIX)
 
 if (WIN32)
 add_definitions(-D_CRT_SECURE_NO_WARNINGS -D_CRT_NONSTDC_NO_DEPRECATE)
-set (CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -MTd -EHsc")
-set (CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -MT -EHsc")
+set (CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -EHsc")
+set (CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -EHsc")
 endif (WIN32)
 
-include_directories("minilzo-2.09" "json11")
+include_directories("minilzo-2.09" "json11" "zlib" "build/zlib")
 add_library (xcomsave ${xcomsave_sources} ${xcomsave_headers})
-set_target_properties (xcomsave PROPERTIES LINKER_LANGUAGE CXX)
+target_link_libraries(xcomsave zlibstatic)
+set_target_properties(xcomsave PROPERTIES LINKER_LANGUAGE CXX)
 
 set (xcom2json_sources xcom2json.cpp)
 set (xcom2json_headers)
@@ -31,3 +32,4 @@ add_executable (json2xcom ${json2xcom_sources} ${json2xcom_headers})
 set_target_properties (json2xcom PROPERTIES LINKER_LANGUAGE CXX)
 target_link_libraries(json2xcom xcomsave)
 
+add_subdirectory(zlib)

@@ -88,7 +88,11 @@ header build_header(const Json& json)
                 "Error reading json file: header format does not match\n");
     }
 
-    hdr.version = json["version"].int_value();
+    hdr.version = static_cast<xcom_version>(json["version"].int_value());
+    if (!supported_version(hdr.version)) {
+        throw std::runtime_error("Unsupported version number in json file");
+    }
+
     hdr.uncompressed_size = json["uncompressed_size"].int_value();
     hdr.game_number = json["game_number"].int_value();
     hdr.save_number = json["save_number"].int_value();

@@ -19,6 +19,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 #include "xcomio.h"
 #include "minilzo.h"
+#include "zlib.h"
 #include <cassert>
 #include <cstring>
 #include <tuple>
@@ -31,7 +32,7 @@ namespace xcom
 
     static void write_header(xcom_io& w, const header& hdr)
     {
-        w.write_int(hdr.version);
+        w.write_int(static_cast<uint32_t>(hdr.version));
         w.write_int(0);
         w.write_int(hdr.game_number);
         w.write_int(hdr.save_number);
@@ -51,15 +52,17 @@ namespace xcom
         w.seek(xcom_io::seek_kind::start, offset);
         w.write_int(compressed_crc);
 
-        // Compute the CRC for the header
-        int32_t hdr_length = w.offset() + 4;
+        // Compute the CRC for the header (except android)
+        if (hdr.version != xcom_version::enemy_within_android) {
+            int32_t hdr_length = w.offset() + 4;
 
-        w.seek(xcom_io::seek_kind::start, 0);
-        uint32_t hdr_crc = w.crc(hdr_length);
+            w.seek(xcom_io::seek_kind::start, 0);
+            uint32_t hdr_crc = w.crc(hdr_length);
 
-        w.seek(xcom_io::seek_kind::start, 1016);
-        w.write_int(hdr_length);
-        w.write_int(hdr_crc);
+            w.seek(xcom_io::seek_kind::start, 1016);
+            w.write_int(hdr_length);
+            w.write_int(hdr_crc);
+        }
     }
 
     static void write_actor_table(xcom_io& w, const actor_table& actors)
@@ -313,7 +316,47 @@ namespace xcom
         }
     }
 
-    buffer<unsigned char> compress(xcom_io &w)
+    static char lzo_work_buffer[LZO1X_1_MEM_COMPRESS];
+
+    unsigned long compress_one_chunk(xcom_version version, const unsigned char *chunk_start, unsigned long chunk_size, unsigned char *output_start, unsigned long output_size)
+    {
+        switch (version)
+        {
+            case xcom_version::enemy_within:
+            {
+                unsigned long bytes_compressed = output_size;
+                std::unique_ptr<char[]> wrkMem = std::make_unique<char[]>(LZO1X_1_MEM_COMPRESS);
+
+                lzo_init();
+                if (lzo1x_1_compress(chunk_start, chunk_size,
+                    output_start, &bytes_compressed, lzo_work_buffer) != LZO_E_OK) {
+                    throw std::runtime_error("Failed to compress chunk\n");
+                }
+                return bytes_compressed;
+            }
+
+            case xcom_version::enemy_within_android:
+            {
+                z_stream stream;
+                stream.zalloc = Z_NULL;
+                stream.zfree = Z_NULL;
+                stream.opaque = Z_NULL;
+                stream.avail_in = chunk_size;
+                stream.next_in = (Bytef*)chunk_start;
+                stream.avail_out = output_size;
+                stream.next_out = (Bytef*)(output_start);
+                deflateInit(&stream, Z_BEST_COMPRESSION);
+                deflate(&stream, Z_FINISH);
+                deflateEnd(&stream);
+                return stream.total_out;
+            }
+
+            default:
+                throw std::runtime_error("Unexpected version\n");
+        }
+    }
+
+    buffer<unsigned char> compress(xcom_io &w, xcom_version version)
     {
         int total_in_size = w.offset();
         // Allocate a new buffer to hold the compressed data. Just allocate as
@@ -324,53 +367,48 @@ namespace xcom
 
         // Compress the data in 128k chunks
         int idx = 0;
-        static const int chunk_size = 0x20000;
+        static const int max_chunk_size = 0x20000;
 
         // The "flags" (?) value is always 20000, even for trailing chunks
         static const int chunk_flags = 0x20000;
         w.seek(xcom_io::seek_kind::start, 0);
-        const unsigned char *buf_ptr = w.pointer();
+        const unsigned char *chunk_start = w.pointer();
         // Reserve 1024 bytes at the start of the compressed buffer for the header.
-        unsigned char *compressed_ptr = b.buf.get() + 1024;
+        unsigned char *output_ptr = b.buf.get() + 1024;
         int bytes_left = total_in_size;
         int total_out_size = 1024;
 
-        lzo_init();
-
-        std::unique_ptr<char[]> wrkMem = std::make_unique<char[]>(LZO1X_1_MEM_COMPRESS);
-
         do
         {
-            int uncompressed_size = (bytes_left < chunk_size) ? bytes_left : chunk_size;
-            unsigned long bytes_compressed = bytes_left - 24;
-            // Compress the chunk
-            int ret = lzo1x_1_compress(buf_ptr, uncompressed_size, 
-                        compressed_ptr + 24, &bytes_compressed, wrkMem.get());
-            if (ret != LZO_E_OK) {
-                fprintf(stderr, "Error compressing data: %d", ret);
-            }
-            // Write the magic number
-            *reinterpret_cast<int*>(compressed_ptr) = UPK_Magic;
-            compressed_ptr += 4;
-            // Write the "flags" (?)
-            *reinterpret_cast<int*>(compressed_ptr) = chunk_flags;
-            compressed_ptr += 4;
-            // Write the compressed size
-            *reinterpret_cast<int*>(compressed_ptr) = bytes_compressed;
-            compressed_ptr += 4;
-            // Write the uncompressed size
-            *reinterpret_cast<int*>(compressed_ptr) = uncompressed_size;
-            compressed_ptr += 4;
-            // Write the compressed size
-            *reinterpret_cast<int*>(compressed_ptr) = bytes_compressed;
-            compressed_ptr += 4;
-            // Write the uncompressed size
-            *reinterpret_cast<int*>(compressed_ptr) = uncompressed_size;
-            compressed_ptr += 4;
+            int chunk_size = (bytes_left < max_chunk_size) ? bytes_left : max_chunk_size;
 
-            compressed_ptr += bytes_compressed;
+            // Compress the next chunk, reserving 24 bytes from the current output position for the chunk header.
+            unsigned long bytes_compressed = compress_one_chunk(version, chunk_start, chunk_size, output_ptr + 24, bytes_left);
+
+            // Write the magic number
+            *reinterpret_cast<int*>(output_ptr) = UPK_Magic;
+            output_ptr += 4;
+            // Write the "flags" (?)
+            *reinterpret_cast<int*>(output_ptr) = chunk_flags;
+            output_ptr += 4;
+            // Write the compressed size
+            *reinterpret_cast<int*>(output_ptr) = bytes_compressed;
+            output_ptr += 4;
+            // Write the uncompressed size of this chunk
+            *reinterpret_cast<int*>(output_ptr) = chunk_size;
+            output_ptr += 4;
+            // Write the compressed size
+            *reinterpret_cast<int*>(output_ptr) = bytes_compressed;
+            output_ptr += 4;
+            // Write the uncompressed size
+            *reinterpret_cast<int*>(output_ptr) = chunk_size;
+            output_ptr += 4;
+
+            // Skip over the compressed chunk we wrote
+            output_ptr += bytes_compressed;
+
             bytes_left -= chunk_size;
-            buf_ptr += chunk_size;
+            chunk_start += chunk_size;
             total_out_size += bytes_compressed + 24;
         } while (bytes_left > 0);
 
@@ -382,9 +420,12 @@ namespace xcom
     {
         xcom_io w{};
 
+        if (!supported_version(save.hdr.version)) {
+            throw std::runtime_error("Unsupported version in save data.\n");
+        }
         write_actor_table(w, save.actors);
         write_checkpoint_chunks(w, save.checkpoints);
-        xcom_io compressed{ compress(w) };
+        xcom_io compressed{ compress(w, save.hdr.version) };
         write_header(compressed, save.hdr);
         return compressed.release();
     }

@@ -1,3 +1,6 @@
 [submodule "json11"]
 	path = json11
 	url = https://github.com/dropbox/json11
+[submodule "zlib"]
+	path = zlib
+	url = https://github.com/madler/zlib

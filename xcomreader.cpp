@@ -18,6 +18,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 */
 
 #include "minilzo.h"
+#include "zlib.h"
 #include "xcomio.h"
 #include "util.h"
 
@@ -36,13 +37,21 @@ namespace xcom
     header read_header(xcom_io &r)
     {
         header hdr;
-        hdr.version = r.read_int();
-        if (hdr.version != save_version) {
+        hdr.version = static_cast<xcom_version>(r.read_int());
+        switch (hdr.version)
+        {
+        case xcom_version::enemy_within:
+        case xcom_version::enemy_within_android:
+            // Yay! A supported save!
+            break;
+        default:
+            // Not supported.
             fprintf(stderr, 
-                "Error: Data does not appear to be an xcom save: expected file version %d but got %d\n", 
-                save_version, hdr.version);
-            return{ 0 };
+                "Error: File does not appear to be a supported xcom save: got version %d\n",
+                hdr.version);
+            return{ xcom_version::invalid };
         }
+
         hdr.uncompressed_size = r.read_int();
         hdr.game_number = r.read_int();
         hdr.save_number = r.read_int();
@@ -57,16 +66,20 @@ namespace xcom
         uint32_t compressed_crc = (uint32_t)r.read_int();
 
         // Compute the CRC of the header
-        r.seek(xcom_io::seek_kind::start, 1016);
-        int32_t hdr_size = r.read_int();
-        uint32_t hdr_crc = (uint32_t)r.read_int();
+        // Note the android version includes only a single checksum over the compressed data,
+        // the header is not checked.
+        if (hdr.version != xcom_version::enemy_within_android) {
+            r.seek(xcom_io::seek_kind::start, 1016);
+            int32_t hdr_size = r.read_int();
+            uint32_t hdr_crc = (uint32_t)r.read_int();
 
-        // CRC the first hdr_size bytes of the buffer
-        r.seek(xcom_io::seek_kind::start, 0);
-        uint32_t computed_hdr_crc = r.crc(hdr_size);
-        if (hdr_crc != computed_hdr_crc)
-        {
-            throw std::runtime_error("CRC mismatch in header. Bad save?\n");
+            // CRC the first hdr_size bytes of the buffer
+            r.seek(xcom_io::seek_kind::start, 0);
+            uint32_t computed_hdr_crc = r.crc(hdr_size);
+            if (hdr_crc != computed_hdr_crc)
+            {
+                throw std::runtime_error("CRC mismatch in header. Bad save?\n");
+            }
         }
 
         // CRC the compressed data
@@ -607,23 +620,62 @@ namespace xcom
         return uncompressed_size;
     }
 
-    buffer<unsigned char> decompress(xcom_io &r)
+    unsigned long decompress_one_chunk(xcom_version version, const unsigned char *compressed_start, unsigned long compressed_size, unsigned char *decompressed_start, unsigned long decompressed_size)
     {
-        size_t uncompressed_size = calculate_uncompressed_size(r);
-        if (uncompressed_size < 0) {
-            throw format_exception(r.offset(), "Found no uncompressed data in save.\n");
+        switch (version)
+        {
+            case xcom_version::enemy_within:
+            {
+                lzo_init();
+                if (lzo1x_decompress_safe(compressed_start, compressed_size, decompressed_start,
+                    &decompressed_size, nullptr) != LZO_E_OK) {
+                    throw std::runtime_error("LZO decompress of save data failed\n");
+                }
+
+                return decompressed_size;
+            }
+
+            case xcom_version::enemy_within_android:
+            {
+                z_stream stream;
+                stream.zalloc = Z_NULL;
+                stream.zfree = Z_NULL;
+                stream.opaque = Z_NULL;
+                stream.avail_in = compressed_size;
+                stream.next_in = (Bytef*)compressed_start;
+                stream.avail_out = decompressed_size;
+                stream.next_out = (Bytef*)decompressed_start;
+                inflateInit(&stream);
+                inflate(&stream, Z_NO_FLUSH);
+                inflateEnd(&stream);
+                return stream.total_out;
+            }
+            break;
+
+            default:
+                throw std::runtime_error("Unexpected version\n");
+        }
+    }
+
+    buffer<unsigned char> decompress(xcom_io &r, xcom_version version)
+    {
+        size_t total_uncompressed_size = calculate_uncompressed_size(r);
+        if (total_uncompressed_size < 0) {
+            throw format_exception(r.offset(), "Found no uncompressed data in save\n");
         }
 
-        std::unique_ptr<unsigned char[]> buf = std::make_unique<unsigned char[]>(uncompressed_size);
+        std::unique_ptr<unsigned char[]> buf = std::make_unique<unsigned char[]>(total_uncompressed_size);
         // Start back at the beginning of the compressed data.
         r.seek(xcom_io::seek_kind::start, compressed_data_start);
         
         unsigned char *outp = buf.get();
+        unsigned long bytes_remaining = total_uncompressed_size;
+
         do
         {
             // Expect the magic header value 0x9e2a83c1 at the start of each chunk
             if (r.read_int() != UPK_Magic) {
-                throw format_exception(r.offset(), 
+                throw format_exception(r.offset(),
                         "Failed to find compressed chunk header\n");
             }
 
@@ -635,15 +687,7 @@ namespace xcom
 
             // Uncompressed size is at p+12
             int32_t uncompressed_size = r.read_int();
-
-            unsigned long decomp_size = uncompressed_size;
-
-            if (lzo1x_decompress_safe(r.pointer() + 8, compressed_size, outp, 
-                                      &decomp_size, nullptr) != LZO_E_OK) {
-                throw format_exception(r.offset(), 
-                        "LZO decompress of save data failed\n");
-            }
-
+            unsigned long decomp_size = decompress_one_chunk(version, r.pointer() + 8, compressed_size, outp, bytes_remaining);
             if (decomp_size != uncompressed_size)
             {
                 throw format_exception(r.offset(), "Failed to decompress chunk\n");
@@ -653,9 +697,10 @@ namespace xcom
             // compressedSize bytes later.
             r.seek(xcom_io::seek_kind::current, compressed_size + 8);
             outp += uncompressed_size;
+            bytes_remaining -= uncompressed_size;
         } while (!r.eof());
 
-        return{ std::move(buf), uncompressed_size };
+        return{ std::move(buf), total_uncompressed_size };
     }
 
     buffer<unsigned char> read_file(const std::string& filename)
@@ -691,7 +736,7 @@ namespace xcom
 
         xcom_io rdr{ std::move(b) };
         save.hdr = read_header(rdr);
-        buffer<unsigned char> uncompressed_buf = decompress(rdr);
+        buffer<unsigned char> uncompressed_buf = decompress(rdr, static_cast<xcom_version>(save.hdr.version));
 #ifdef _DEBUG
         FILE *fp = fopen("output.dat", "wb");
         fwrite(uncompressed_buf.buf.get(), 1, uncompressed_buf.length, fp);

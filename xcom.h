@@ -30,8 +30,25 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 namespace xcom
 {
-    // The supported saved game version
-    static const int save_version = 0x10;
+    // The supported saved game version(s)
+    enum class xcom_version : uint32_t {
+        invalid = 0,
+        enemy_within = 0x10,
+        enemy_within_android = 0x13,
+        // xcom2 = 0x14 (not supported)
+    };
+
+    static bool supported_version(xcom_version ver)
+    {
+        switch (ver)
+        {
+        case xcom_version::enemy_within:
+        case xcom_version::enemy_within_android:
+            return true;
+        default:
+            return false;
+        }
+    }
 
     // A buffer object for performing file IO. An xcom save may be read from
     // or written to a buffer instance or a file.
@@ -85,8 +102,8 @@ namespace xcom
     // 1024-end : Compressed data
     struct header
     {
-        // XCom save version (always 0x10)
-        int32_t version;
+        // XCom save version
+        xcom_version version;
 
         // From the upk packages this looks like it should be the total
         // uncompressed size of the save data. In practice It's always all zeros.

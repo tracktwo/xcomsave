@@ -34,7 +34,9 @@ namespace xcom
 
     namespace util
     {
+        unsigned int crc32(const unsigned char *message, long len);
         unsigned int crc32b(const unsigned char *message, long len);
+        unsigned int adler32(const unsigned char *message, long len);
 
         std::string iso8859_1_to_utf8(const std::string& in);
         std::string utf8_to_iso8859_1(const std::string& in);

@@ -528,7 +528,7 @@ void buildJson(const saved_game& save, json_writer& w)
 
     w.write_key("header");
     w.begin_object();
-    w.write_int("version", hdr.version);
+    w.write_int("version", static_cast<uint32_t>(hdr.version));
     w.write_int("uncompressed_size", hdr.uncompressed_size);
     w.write_int("game_number", hdr.game_number);
     w.write_int("save_number", hdr.save_number);
