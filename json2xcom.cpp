@@ -6,9 +6,12 @@
 #include <cassert>
 #include <cstring>
 #include <string>
+#include <filesystem>
 
 using namespace json11;
 using namespace xcom;
+
+namespace fs = std::experimental::filesystem;
 
 struct property_dispatch
 {
@@ -727,9 +730,12 @@ int main(int argc, char *argv[])
     }
 
     if (outfile.empty()) {
-        size_t pos = infile.find_last_of(".json");
+        size_t pos = infile.rfind(".json");
         if (pos != std::string::npos) {
             outfile = infile.substr(0, pos);
+            if (fs::exists(outfile)) {
+                outfile += ".out";
+            }
         }
         else {
             outfile = infile + ".out";

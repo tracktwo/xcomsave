@@ -6,8 +6,13 @@ set (xcomsave_headers xcomio.h xcom.h util.h)
 
 # Linux-specific configuration
 if (UNIX)
-set (CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} -std=c++14)
+set (CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} -std=c++17)
 endif (UNIX)
+
+if (WIN32)
+set (CMAKE_CXX_FLAGS "-std:c++17 -EHsc")
+add_definitions(-D_CRT_SECURE_NO_WARNINGS -D_CRT_NONSTDC_NO_DEPRECATE)
+endif (WIN32)
 
 # External dependencies - json, lzo, zlib.
 # They're all fairly small and simple enough to statically link into
@@ -18,12 +23,6 @@ endif (UNIX)
 include_directories("minilzo-2.09" "json11" "zlib")
 add_definitions("-DSTDC -DNO_GZIP")
 file(GLOB zlib_sources zlib/*.c zlib/*.h)
-
-if (WIN32)
-add_definitions(-D_CRT_SECURE_NO_WARNINGS -D_CRT_NONSTDC_NO_DEPRECATE)
-set (CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -EHsc")
-set (CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -EHsc")
-endif (WIN32)
 
 add_library (xcomsave ${xcomsave_sources} ${zlib_sources} ${xcomsave_headers})
 set_target_properties(xcomsave PROPERTIES LINKER_LANGUAGE CXX)
