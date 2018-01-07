@@ -83,7 +83,7 @@ namespace xcom
 
     // The header occurs at the start of the save file and is the only
     // uncompressed part of the save. The first 1024 bytes of the save are the
-    // header, although most of it is all zeros. The header contains two
+    // header, although most of it is all zeros. On PC the header contains two
     // checksums: the first checksum occurs at the end of the main header data
     // blob (e.g. the data represented in this struct) and is the CRC32 of all
     // the compressed data in the file. E.g. everything from byte
@@ -100,6 +100,11 @@ namespace xcom
     // 1016     : Number of bytes of header checksummed (N + 4).
     // 1020     : CRC32 of the first N+4 bytes of header.
     // 1024-end : Compressed data
+    //
+    // In version 0x13 (Enemy Within for Android) there is only a single
+    // compressed date checksum, no header checksum. It occurs in the same
+    // place as on PC and checksums data from offset 1024 to the end of the
+    // file.
     struct header
     {
         // XCom save version

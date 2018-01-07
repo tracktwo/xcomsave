@@ -41,7 +41,7 @@ Use `git clone --recursive ` to obtain the source otherwise submodule `json11` w
 
 ### Windows
 
-Windows builds require Visual Studio 2015. Community Edition is free and will work fine, but older versions of Visual 
+Windows builds require Visual Studio 2017. Community Edition is free and will work fine, but older versions of Visual 
 Studio will not.
 
 ### Linux
