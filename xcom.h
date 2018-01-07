@@ -138,6 +138,9 @@ namespace xcom
 
         // The current game language (e.g. INT for English/International)
         std::string language;
+
+        int32_t profile_number; // Profile number (Android)
+        xcom_string profile_date; // Profile date? (Android)
     };
 
     using actor_table = std::vector<std::string>;

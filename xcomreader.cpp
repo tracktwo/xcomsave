@@ -65,6 +65,13 @@ namespace xcom
         hdr.language = r.read_string();
         uint32_t compressed_crc = (uint32_t)r.read_int();
 
+        // The Android version has two additional fields in the header, 12 bytes after the checksum
+        if (hdr.version == xcom_version::enemy_within_android) {
+            r.seek(xcom_io::seek_kind::current, 12);
+            hdr.profile_number = r.read_int();
+            hdr.profile_date = r.read_unicode_string();
+        }
+
         // Compute the CRC of the header
         // Note the android version includes only a single checksum over the compressed data,
         // the header is not checked.

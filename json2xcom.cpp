@@ -5,6 +5,7 @@
 #include <iostream>
 #include <cassert>
 #include <cstring>
+#include <string>
 
 using namespace json11;
 using namespace xcom;
@@ -64,33 +65,61 @@ xcom_string build_unicode_string(const Json& json)
     return xcom_string{ json["str"].string_value(), json["is_wide"].bool_value() };
 }
 
+bool check_header_shape(xcom_version version, const Json& json)
+{
+    std::string err;
+
+    switch (version)
+    {
+    case xcom_version::enemy_within:
+        return json.has_shape({
+            { std::string("version"), Json::NUMBER },
+            { std::string("uncompressed_size"), Json::NUMBER },
+            { "game_number", Json::NUMBER },
+            { "save_number", Json::NUMBER },
+            { "save_description", Json::OBJECT },
+            { "time", Json::OBJECT },
+            { "map_command", Json::STRING },
+            { "tactical_save", Json::BOOL },
+            { "ironman", Json::BOOL },
+            { "autosave", Json::BOOL },
+            { "dlc", Json::STRING },
+            { "language", Json::STRING }
+        }, err);
+    case xcom_version::enemy_within_android:
+        return json.has_shape({
+            { "version", Json::NUMBER },
+            { "uncompressed_size", Json::NUMBER },
+            { "game_number", Json::NUMBER },
+            { "save_number", Json::NUMBER },
+            { "save_description", Json::OBJECT },
+            { "time", Json::OBJECT },
+            { "map_command", Json::STRING },
+            { "tactical_save", Json::BOOL },
+            { "ironman", Json::BOOL },
+            { "autosave", Json::BOOL },
+            { "dlc", Json::STRING },
+            { "language", Json::STRING },
+            { "profile_number", Json::NUMBER },
+            { "profile_date", Json::OBJECT },
+        }, err);
+    default:
+        throw std::runtime_error("Unexpected version.\n");
+    }
+}
+
 header build_header(const Json& json)
 {
     header hdr;
-    Json::shape shape = {
-        { "version", Json::NUMBER },
-        { "uncompressed_size", Json::NUMBER },
-        { "game_number", Json::NUMBER },
-        { "save_number", Json::NUMBER },
-        { "save_description", Json::OBJECT },
-        { "time", Json::OBJECT },
-        { "map_command", Json::STRING },
-        { "tactical_save", Json::BOOL },
-        { "ironman", Json::BOOL },
-        { "autosave", Json::BOOL },
-        { "dlc", Json::STRING },
-        { "language", Json::STRING }
-    };
-
-    std::string err;
-    if (!json.has_shape(shape, err)) {
-        throw std::runtime_error(
-                "Error reading json file: header format does not match\n");
-    }
 
     hdr.version = static_cast<xcom_version>(json["version"].int_value());
     if (!supported_version(hdr.version)) {
         throw std::runtime_error("Unsupported version number in json file");
+    }
+
+    // The header shape depends on the version.
+    if (!check_header_shape(hdr.version, json)) {
+        throw std::runtime_error("Error reading json file: format mismatch in header");
     }
 
     hdr.uncompressed_size = json["uncompressed_size"].int_value();
@@ -104,6 +133,11 @@ header build_header(const Json& json)
     hdr.autosave = json["autosave"].bool_value();
     hdr.dlc = json["dlc"].string_value();
     hdr.language = json["language"].string_value();
+
+    if (hdr.version == xcom_version::enemy_within_android) {
+        hdr.profile_number = json["profile_number"].int_value();
+        hdr.profile_date = build_unicode_string(json["profile_date"]);
+    }
 
     return hdr;
 }

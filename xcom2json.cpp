@@ -540,6 +540,11 @@ void buildJson(const saved_game& save, json_writer& w)
     w.write_bool("autosave", hdr.autosave);
     w.write_string("dlc", hdr.dlc);
     w.write_string("language", hdr.language);
+
+    if (hdr.version == xcom_version::enemy_within_android) {
+        w.write_int("profile_number", hdr.profile_number);
+        w.write_unicode_string("profile_date", hdr.profile_date);
+    }
     w.end_object();
 
     w.write_key("actor_table");
