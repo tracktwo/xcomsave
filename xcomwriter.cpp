@@ -328,11 +328,12 @@ namespace xcom
                 std::unique_ptr<char[]> wrkMem = std::make_unique<char[]>(LZO1X_1_MEM_COMPRESS);
 
                 lzo_init();
+                lzo_uint out_compressed_size = bytes_compressed;
                 if (lzo1x_1_compress(chunk_start, chunk_size,
-                    output_start, &bytes_compressed, lzo_work_buffer) != LZO_E_OK) {
+                    output_start, &out_compressed_size, lzo_work_buffer) != LZO_E_OK) {
                     throw std::runtime_error("Failed to compress chunk\n");
                 }
-                return bytes_compressed;
+                return out_compressed_size;
             }
 
             case xcom_version::enemy_within_android:

@@ -634,12 +634,13 @@ namespace xcom
             case xcom_version::enemy_within:
             {
                 lzo_init();
+                lzo_uint out_decompressed_size = decompressed_size;
                 if (lzo1x_decompress_safe(compressed_start, compressed_size, decompressed_start,
-                    &decompressed_size, nullptr) != LZO_E_OK) {
+                    &out_decompressed_size, nullptr) != LZO_E_OK) {
                     throw std::runtime_error("LZO decompress of save data failed\n");
                 }
 
-                return decompressed_size;
+                return out_decompressed_size;
             }
 
             case xcom_version::enemy_within_android:

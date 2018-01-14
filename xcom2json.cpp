@@ -614,7 +614,7 @@ int main(int argc, char *argv[])
         buildJson(save, w);
     }
     catch (format_exception e) {
-        fprintf(stderr, "Error (0x%08x): ", e.offset());
+        fprintf(stderr, "Error (0x%08td): ", e.offset());
         fprintf(stderr, e.what());
     }
     catch (std::exception e) {

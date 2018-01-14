@@ -6,7 +6,14 @@
 #include <cassert>
 #include <cstring>
 #include <string>
+
+#if __has_include(<filesystem>)
 #include <filesystem>
+#elif __has_include(<experimental/filesystem>)
+#include <experimental/filesystem>
+#else
+#error No <filesystem> support on this platform.
+#endif
 
 using namespace json11;
 using namespace xcom;
@@ -756,7 +763,7 @@ int main(int argc, char *argv[])
         write_xcom_save(save, outfile);
     }
     catch (format_exception e) {
-        fprintf(stderr, "Error (0x%08x): ", e.offset());
+        fprintf(stderr, "Error (0x%08td): ", e.offset());
         fprintf(stderr, e.what());
     }
     catch (std::exception e) {
