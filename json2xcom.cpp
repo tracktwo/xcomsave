@@ -335,7 +335,7 @@ property_ptr build_struct_property(const Json& json)
     std::unique_ptr<unsigned char[]> data;
     const std::string & native_data_str = json["native_data"].string_value();
     if (native_data_str != "") {
-        size_t data_len = native_data_str.length() / 2;
+        int32_t data_len = static_cast<int32_t>(native_data_str.length() / 2);
         data = util::from_hex(native_data_str);
         return std::make_unique<struct_property>(json["name"].string_value(), 
             json["struct_name"].string_value(), std::move(data), data_len);
@@ -383,7 +383,7 @@ property_ptr build_array_property(const Json& json)
     std::unique_ptr<unsigned char[]> data;
 
     if (data_str.length() > 0) {
-        assert((data_str.length() / 2) == (json["data_length"].int_value()));
+        assert(static_cast<int32_t>(data_str.length() / 2) == (json["data_length"].int_value()));
         data = util::from_hex(data_str);
     }
 
@@ -709,7 +709,6 @@ buffer<char> read_file(const std::string& filename)
 
 int main(int argc, char *argv[])
 {
-    bool writesave = false;
     std::string  infile;
     std::string outfile;
 
@@ -764,10 +763,10 @@ int main(int argc, char *argv[])
     }
     catch (format_exception e) {
         fprintf(stderr, "Error (0x%08td): ", e.offset());
-        fprintf(stderr, e.what());
+        fprintf(stderr, "%s", e.what());
     }
     catch (std::exception e) {
-        fprintf(stderr, e.what());
+        fprintf(stderr, "%s", e.what());
         return 1;
     }
 }

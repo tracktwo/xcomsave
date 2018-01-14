@@ -28,7 +28,19 @@ xcomio.cpp - Low-level operations on an xcom io buffer.
 
 namespace xcom
 {
-    void xcom_io::seek(seek_kind k, size_t offset)
+    bool supported_version(xcom_version ver)
+    {
+        switch (ver)
+        {
+        case xcom_version::enemy_within:
+        case xcom_version::enemy_within_android:
+            return true;
+        default:
+            return false;
+        }
+    }
+
+    void xcom_io::seek(seek_kind k, std::ptrdiff_t offset)
     {
         switch (k)
         {
@@ -120,7 +132,7 @@ namespace xcom
             // Double check the length matches what we read from the file,
             // considering the trailing null is counted in the length stored in
             // the file.
-            if (actual_length != (length - 1))
+            if (static_cast<int32_t>(actual_length) != (length - 1))
             {
                 if (throw_on_error) {
                     throw format_exception(offset(), "String mismatch: expected length %d but found %d\n", length, actual_length);
@@ -134,14 +146,14 @@ namespace xcom
         }
     }
 
-    std::unique_ptr<unsigned char[]> xcom_io::read_raw_bytes(size_t count)
+    std::unique_ptr<unsigned char[]> xcom_io::read_raw_bytes(int32_t count)
     {
         std::unique_ptr<unsigned char[]> buf = std::make_unique<unsigned char[]>(count);
         read_raw_bytes(count, buf.get());
         return buf;
     }
 
-    void xcom_io::read_raw_bytes(size_t count, unsigned char *outp)
+    void xcom_io::read_raw_bytes(int32_t count, unsigned char *outp)
     {
         memcpy(outp, ptr_, count);
         ptr_ += count;
@@ -157,7 +169,10 @@ namespace xcom
         std::ptrdiff_t current_count = offset();
 
         if ((current_count + count) > length_) {
-            size_t new_length = length_ * 2;
+            int32_t new_length = static_cast<int32_t>(length_ * 2);
+            if (new_length < 0) {
+                throw std::runtime_error("Save file overflow\n");
+            }
             unsigned char * new_buffer = new unsigned char[new_length];
             memcpy(new_buffer, start_.get(), current_count);
             start_.reset(new_buffer);
@@ -179,10 +194,18 @@ namespace xcom
         }
         else if (s.is_wide) {
             std::u16string conv16 = util::utf8_to_utf16(s.str);
-            ensure(conv16.length() * 2 + 6);
+            if ((conv16.length() + 1) > static_cast<size_t>(std::numeric_limits<int32_t>::max())) {
+                throw std::runtime_error("string too long");
+            }
+
+            int32_t terminated_character_count = static_cast<int32_t>(conv16.length()) + 1;
+
+            // Need 2*char count (w/ terminating null) + 4 bytes for length.
+            ensure(terminated_character_count * 2 + 4);
+
             // Write the length as a negative value, including the terminating
-            // null character
-            write_int((conv16.length() + 1) * -1);
+            // null character 
+            write_int(terminated_character_count * -1);
             // Copy 2*length bytes of string data
             memcpy(ptr_, conv16.c_str(), conv16.length() * 2);
             ptr_ += conv16.length() * 2;
@@ -195,8 +218,13 @@ namespace xcom
         else {
             // Looks like it's an ASCII/Latin-1 string.
             std::string conv = util::utf8_to_iso8859_1(s.str);
-            ensure(conv.length() + 5);
-            write_int(conv.length() + 1);
+            if ((conv.length() + 1) > static_cast<size_t>(std::numeric_limits<int32_t>::max())) {
+                throw std::runtime_error("string too long\n");
+            }
+
+            int32_t terminated_character_count = static_cast<int32_t>(conv.length()) + 1;
+            ensure(terminated_character_count + 4);
+            write_int(terminated_character_count);
             memcpy(ptr_, conv.c_str(), conv.length());
             ptr_ += conv.length();
             *ptr_++ = 0;
@@ -229,7 +257,7 @@ namespace xcom
         *ptr_++ = c;
     }
 
-    void xcom_io::write_raw(unsigned char *buf, size_t len)
+    void xcom_io::write_raw(unsigned char *buf, int32_t len)
     {
         ensure(len);
         memcpy(ptr_, buf, len);

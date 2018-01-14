@@ -54,7 +54,7 @@ namespace xcom
 
         // Compute the CRC for the header (except android)
         if (hdr.version != xcom_version::enemy_within_android) {
-            int32_t hdr_length = w.offset() + 4;
+            int32_t hdr_length = static_cast<int32_t>(w.offset() + 4);
 
             w.seek(xcom_io::seek_kind::start, 0);
             uint32_t hdr_crc = w.crc(hdr_length);
@@ -68,7 +68,7 @@ namespace xcom
     static void write_actor_table(xcom_io& w, const actor_table& actors)
     {
         // Each actorTable entry has 2 entries in the save table; names are split.
-        w.write_int(actors.size() * 2);
+        w.write_int(static_cast<int32_t>(actors.size() * 2));
         for (const std::string& actor : actors) {
             std::tuple<std::string, std::string, int> tup = decompose_actor_name(actor);
             w.write_string(std::get<1>(tup));
@@ -111,7 +111,7 @@ namespace xcom
 
         virtual void visit(object_property *prop) override
         {
-            if (prop->actor == 0xffffffff) {
+            if (prop->actor == -1) {
                 io_.write_int(prop->actor);
                 io_.write_int(prop->actor);
             }
@@ -139,7 +139,7 @@ namespace xcom
             io_.write_string(prop->struct_name);
             io_.write_int(0);
             if (prop->native_data_length > 0) {
-                io_.write_raw(prop->native_data.get(), prop->native_data_length);
+                io_.write_raw(prop->native_data.get(), static_cast<int32_t>(prop->native_data_length));
             }
             else {
                 for (unsigned int i = 0; i < prop->properties.size(); ++i) {
@@ -153,13 +153,13 @@ namespace xcom
         virtual void visit(array_property *prop) override
         {
             io_.write_int(prop->array_bound);
-            size_t data_length = prop->size() - 4;
+            int32_t data_length = prop->size() - 4;
             io_.write_raw(prop->data.get(), data_length);
         }
 
         virtual void visit(object_array_property *prop) override
         {
-            io_.write_int(prop->elements.size());
+            io_.write_int(static_cast<int32_t>(prop->elements.size()));
             for (size_t i = 0; i < prop->elements.size(); ++i) {
                 if (prop->elements[i] == -1) {
                     io_.write_int(prop->elements[i]);
@@ -174,7 +174,7 @@ namespace xcom
 
         virtual void visit(number_array_property *prop) override
         {
-            io_.write_int(prop->elements.size());
+            io_.write_int(static_cast<int32_t>(prop->elements.size()));
             for (size_t i = 0; i < prop->elements.size(); ++i) {
                 io_.write_int(prop->elements[i]);
             }
@@ -182,7 +182,7 @@ namespace xcom
 
         virtual void visit(string_array_property *prop) override
         {
-            io_.write_int(prop->elements.size());
+            io_.write_int(static_cast<int32_t>(prop->elements.size()));
             for (size_t i = 0; i < prop->elements.size(); ++i) {
                 io_.write_unicode_string(prop->elements[i]);
             }
@@ -190,7 +190,7 @@ namespace xcom
 
         virtual void visit(enum_array_property* prop) override
         {
-            io_.write_int(prop->elements.size());
+            io_.write_int(static_cast<int32_t>(prop->elements.size()));
             for (size_t i = 0; i < prop->elements.size(); ++i) {
                 io_.write_string(prop->elements[i].name);
                 io_.write_int(prop->elements[i].number);
@@ -199,7 +199,7 @@ namespace xcom
 
         virtual void visit(struct_array_property *prop) override
         {
-            io_.write_int(prop->elements.size());
+            io_.write_int(static_cast<int32_t>(prop->elements.size()));
             std::for_each(prop->elements.begin(), prop->elements.end(), 
                 [this](const property_list &pl) {
                     std::for_each(pl.begin(), pl.end(), 
@@ -263,7 +263,7 @@ namespace xcom
         w.write_int(chk.rotator[1]);
         w.write_int(chk.rotator[2]);
         w.write_string(chk.class_name);
-        size_t total_property_size = 0;
+        int32_t total_property_size = 0;
         std::for_each(chk.properties.begin(), chk.properties.end(), 
             [&total_property_size](const property_ptr& prop) {
                 total_property_size += prop->full_size();
@@ -286,7 +286,7 @@ namespace xcom
 
     static void write_checkpoint_table(xcom_io &w, const checkpoint_table& table)
     {
-        w.write_int(table.size());
+        w.write_int(static_cast<int32_t>(table.size()));
         for (const checkpoint& chk : table) {
             write_checkpoint(w, chk);
         }
@@ -333,7 +333,7 @@ namespace xcom
                     output_start, &out_compressed_size, lzo_work_buffer) != LZO_E_OK) {
                     throw std::runtime_error("Failed to compress chunk\n");
                 }
-                return out_compressed_size;
+                return static_cast<unsigned long>(out_compressed_size);
             }
 
             case xcom_version::enemy_within_android:
@@ -359,7 +359,7 @@ namespace xcom
 
     buffer<unsigned char> compress(xcom_io &w, xcom_version version)
     {
-        int total_in_size = w.offset();
+        int32_t total_in_size = static_cast<int32_t>(w.offset());
         // Allocate a new buffer to hold the compressed data. Just allocate as
         // much as the uncompressed buffer since we don't know how big it will
         // be, but it'll presumably be smaller.
@@ -367,7 +367,6 @@ namespace xcom
         b.buf = std::make_unique<unsigned char[]>(total_in_size);
 
         // Compress the data in 128k chunks
-        int idx = 0;
         static const int max_chunk_size = 0x20000;
 
         // The "flags" (?) value is always 20000, even for trailing chunks

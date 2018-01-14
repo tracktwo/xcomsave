@@ -53,7 +53,7 @@ static std::string escape(const std::string& str) {
 struct json_writer
 {
     json_writer(const std::string& filename) :
-        out(filename), indent_level(0), needs_comma(false), skip_indent(true)
+        out(filename), indent_level(0), skip_indent(true), needs_comma(false)
     {
         out.setf(std::ofstream::boolalpha);
     }
@@ -171,7 +171,7 @@ struct json_writer
         end_item(omit_newline);
     }
 
-    void write_unicode_string(const std::string& name, const xcom_string& str, bool omit_newline = false)
+    void write_unicode_string(const std::string& name, const xcom_string& str)
     {
         write_key(name);
         begin_object(true);
@@ -180,7 +180,7 @@ struct json_writer
         end_object();
     }
 
-    void write_raw_unicode_string(const xcom_string& str, bool omit_newline = false)
+    void write_raw_unicode_string(const xcom_string& str)
     {
         begin_object(true);
         write_string("str", str.str, true);
@@ -573,7 +573,6 @@ void usage(const char * name)
 
 int main(int argc, char *argv[])
 {
-    bool writesave = false;
     std::string infile;
     std::string outfile;
     std::string tmpfile;
@@ -615,10 +614,10 @@ int main(int argc, char *argv[])
     }
     catch (format_exception e) {
         fprintf(stderr, "Error (0x%08td): ", e.offset());
-        fprintf(stderr, e.what());
+        fprintf(stderr, "%s", e.what());
     }
     catch (std::exception e) {
-        fprintf(stderr, e.what());
+        fprintf(stderr, "%s", e.what());
         return 1;
     }
 }

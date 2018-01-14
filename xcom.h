@@ -38,17 +38,7 @@ namespace xcom
         // xcom2 = 0x14 (not supported)
     };
 
-    static bool supported_version(xcom_version ver)
-    {
-        switch (ver)
-        {
-        case xcom_version::enemy_within:
-        case xcom_version::enemy_within_android:
-            return true;
-        default:
-            return false;
-        }
-    }
+    bool supported_version(xcom_version ver);
 
     // A buffer object for performing file IO. An xcom save may be read from
     // or written to a buffer instance or a file.
@@ -208,8 +198,8 @@ namespace xcom
         property(const std::string &n, kind_t k) : name(n), kind(k) {}
 
         std::string kind_string() const;
-        virtual size_t size() const = 0;
-        virtual size_t full_size() const;
+        virtual int32_t size() const = 0;
+        virtual int32_t full_size() const;
         virtual void accept(property_visitor * v) = 0;
 
         std::string name;
@@ -275,7 +265,7 @@ namespace xcom
         object_property(const std::string &n, int32_t a) :
             property(n, kind_t::object_property), actor(a) {}
 
-        virtual size_t size() const {
+        virtual int32_t size() const {
             return 8;
         }
 
@@ -292,7 +282,7 @@ namespace xcom
         int_property(const std::string& n, int32_t v) :
             property(n, kind_t::int_property), value(v) {}
 
-        virtual size_t size() const {
+        virtual int32_t size() const {
             return 4;
         }
 
@@ -309,13 +299,13 @@ namespace xcom
         bool_property(const std::string &n, bool v) :
             property(n, kind_t::bool_property), value(v) {}
 
-        virtual size_t size() const {
+        virtual int32_t size() const {
 
             // Bool properties report as size 0
             return 0;
         }
 
-        virtual size_t full_size() const {
+        virtual int32_t full_size() const {
             return property::full_size() + 1;
         }
 
@@ -332,7 +322,7 @@ namespace xcom
         float_property(const std::string &n, float f) :
             property(n, kind_t::float_property), value(f) {}
 
-        virtual size_t size() const {
+        virtual int32_t size() const {
             return 4;
         }
 
@@ -358,7 +348,7 @@ namespace xcom
         string_property(const std::string& n, const xcom_string& s) :
             property(n, kind_t::string_property), str(s) {}
 
-        virtual size_t size() const;
+        virtual int32_t size() const;
 
         virtual void accept(property_visitor *v) {
             v->visit(this);
@@ -382,13 +372,13 @@ namespace xcom
             v->visit(this);
         }
 
-        virtual size_t size() const {
+        virtual int32_t size() const {
             // Length of the string + null byte + the string size integer + the
             // number value.
             // Note: This is making the (reasonable?) assumption that name strings
             // can never be empty and the (unreasonable?) assumption that names
             // are always ASCII.
-            return str.length() + 1 + 4 + 4;
+            return static_cast<int32_t>(str.length()) + 1 + 4 + 4;
         }
 
         std::string str;
@@ -412,11 +402,12 @@ namespace xcom
         array_property(const std::string& n, 
             std::unique_ptr<unsigned char[]>&& a, int32_t dl, int32_t b) :
                 property(n, kind_t::array_property), 
-                data(std::move(a)), 
-                data_length(dl), 
-                array_bound(b) {}
+                data(std::move(a)),
+                array_bound(b), 
+                data_length(dl) 
+                {}
 
-        virtual size_t size() const {
+        virtual int32_t size() const {
             return 4 + data_length;
         }
 
@@ -436,8 +427,8 @@ namespace xcom
         object_array_property(const std::string& n, std::vector<int32_t>&& objs) :
             property(n, kind_t::object_array_property), elements(std::move(objs)) {}
 
-        virtual size_t size() const {
-            return 4 + 8 * elements.size();
+        virtual int32_t size() const {
+            return 4 + 8 * static_cast<int32_t>(elements.size());
         }
 
         virtual void accept(property_visitor* v) {
@@ -457,8 +448,8 @@ namespace xcom
         number_array_property(const std::string& n, std::vector<int32_t> && objs) :
             property(n, kind_t::number_array_property), elements(std::move(objs)) {}
 
-        virtual size_t size() const {
-            return 4 + 4 * elements.size();
+        virtual int32_t size() const {
+            return 4 + 4 * static_cast<int32_t>(elements.size());
         }
 
         virtual void accept(property_visitor *v) {
@@ -482,10 +473,10 @@ namespace xcom
         struct_array_property(const std::string &n, std::vector<property_list>&& props) :
             property(n, kind_t::struct_array_property), elements(std::move(props)) {}
 
-        virtual size_t size() const {
+        virtual int32_t size() const {
             // A struct array has the array bound plus 9 bytes per element for the terminating "None" string 
             // plus 4 bytes per element for the unknown 0 integer that follows the none.
-            size_t total = 4 + 13 * elements.size();
+            int32_t total = 4 + 13 * static_cast<int32_t>(elements.size());
             std::for_each(elements.begin(), elements.end(), 
                 [&total](const property_list &pl) {
                     std::for_each(pl.begin(), pl.end(), 
@@ -512,7 +503,7 @@ namespace xcom
         string_array_property(const std::string& n, std::vector<xcom_string> &&objs) :
             property(n, kind_t::string_array_property), elements(std::move(objs)) {}
 
-        virtual size_t size() const;
+        virtual int32_t size() const;
 
         virtual void accept(property_visitor *v) {
             v->visit(this);
@@ -529,7 +520,7 @@ namespace xcom
         enum_array_property(const std::string& n, std::vector<enum_value>&& objs) :
             property(n, kind_t::enum_array_property), elements(std::move(objs)) {}
 
-        virtual size_t size() const;
+        virtual int32_t size() const;
 
         virtual void accept(property_visitor *v) {
             v->visit(this);
@@ -551,19 +542,19 @@ namespace xcom
             property(n, kind_t::enum_property), type(et), 
             value{ ev, i } {}
 
-        size_t size() const {
+        virtual int32_t size() const {
             // Handle the special "None" byte type which is just a single byte.
             if (type == "None") {
                 return 1;
             }
             // size does not include the size of the enum type string
-            return value.name.length() + 5 + 4;
+            return static_cast<int32_t>(value.name.length()) + 5 + 4;
         }
 
-        virtual size_t full_size() const {
+        virtual int32_t full_size() const {
             // full size must also include the length of the inner "unknown"
             // value and the enum Type string length.
-            return property::full_size() + type.length() + 5 + 4;
+            return property::full_size() + static_cast<int32_t>(type.length()) + 5 + 4;
         }
 
         void accept(property_visitor *v) {
@@ -586,15 +577,15 @@ namespace xcom
                 native_data_length(0) {}
 
         struct_property(const std::string& n, const std::string &sn, 
-            std::unique_ptr<unsigned char[]> &&nd, size_t l) :
+            std::unique_ptr<unsigned char[]> &&nd, int32_t l) :
                 property(n, kind_t::struct_property), 
                 struct_name(sn), 
                 properties{}, 
                 native_data(std::move(nd)), 
                 native_data_length(l) {}
 
-        size_t size() const;
-        virtual size_t full_size() const;
+        virtual int32_t size() const;
+        virtual int32_t full_size() const;
 
         void accept(property_visitor *v) {
             v->visit(this);
@@ -603,7 +594,7 @@ namespace xcom
         std::string struct_name;
         property_list properties;
         std::unique_ptr<unsigned char[]> native_data;
-        size_t native_data_length;
+        int32_t native_data_length;
     };
 
     // A static array property. Static arrays are not first-class objects in
@@ -616,8 +607,8 @@ namespace xcom
         static_array_property(const std::string& n) :
             property(n, kind_t::static_array_property), properties() {}
 
-        virtual size_t size() const {
-            size_t total = 0;
+        virtual int32_t size() const {
+            int32_t total = 0;
             std::for_each(properties.begin(), properties.end(), 
                 [&total](const property_ptr &prop) {
                     total += prop->size();
@@ -625,8 +616,8 @@ namespace xcom
             return total;
         }
 
-        virtual size_t full_size() const {
-            size_t total = 0;
+        virtual int32_t full_size() const {
+            int32_t total = 0;
             std::for_each(properties.begin(), properties.end(), 
                 [&total](const property_ptr &prop) {
                     total += prop->full_size();
@@ -675,7 +666,7 @@ namespace xcom
         int32_t template_index;
 
         // The number of padding bytes (all zeros) appended to the checkpoint.
-        size_t pad_size;
+        uint32_t pad_size;
     };
 
     using checkpoint_table = std::vector<checkpoint>;
@@ -695,7 +686,7 @@ namespace xcom
     {
         std::string name;
         unsigned char zeros[8];
-        size_t data_length;
+        int32_t data_length;
         std::unique_ptr<unsigned char[]> data;
     };
 

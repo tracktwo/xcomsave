@@ -95,10 +95,10 @@ namespace xcom
             0xb1f740b4UL 
         };
 
-        unsigned int crc32b(const unsigned char *message, long len)
+        unsigned int crc32b(const unsigned char *message, size_t len)
         {
             unsigned int crc = 0xffffffff;
-            for (int i = 0; i < len; ++i) {
+            for (size_t i = 0; i < len; ++i) {
                 unsigned char tmp = (crc >> 24) ^ message[i];
                 crc = (crc << 8) ^ (crc32_table_b[tmp]);
             }
@@ -172,7 +172,6 @@ namespace xcom
         std::string iso8859_1_to_utf8(const std::string& in)
         {
             std::string out;
-            const unsigned char *p = reinterpret_cast<const unsigned char *>(in.c_str());
 
             for (size_t i = 0; i < in.length(); ++i) {
                 unsigned char p = static_cast<unsigned char>(in[i]);
@@ -190,7 +189,6 @@ namespace xcom
         std::string utf8_to_iso8859_1(const std::string& in)
         {
             std::string out;
-            const unsigned char *p = reinterpret_cast<const unsigned char *>(in.c_str());
 
             for (size_t i = 0; i < in.length(); ++i) {
                 unsigned char p = static_cast<unsigned char>(in[i]);
@@ -239,7 +237,7 @@ namespace xcom
             std::unique_ptr<char16_t[]> out_ptr = 
                     std::make_unique<char16_t[]>(out_length);
             char *out_buf = reinterpret_cast<char *>(out_ptr.get());
-            size_t result = iconv(cd, const_cast<char **>(&in_buf), &in_length, 
+            int32_t result = iconv(cd, const_cast<char **>(&in_buf), &in_length, 
                     &out_buf, &out_length);
             if (result < 0) {
                 throw std::runtime_error(
@@ -256,7 +254,7 @@ namespace xcom
             std::size_t out_length = in.length() * 4 + 1;
             std::unique_ptr<char []> out_ptr = std::make_unique<char []>(out_length);
             char *out_buf = out_ptr.get();
-            size_t result = iconv(cd, const_cast<char **>(&in_buf), &in_length,
+            int32_t result = iconv(cd, const_cast<char **>(&in_buf), &in_length,
                     &out_buf, &out_length);
             if (result < 0) {
                 throw std::runtime_error(
@@ -268,12 +266,12 @@ namespace xcom
 
     } // namespace util
 
-    size_t property::full_size() const
+    int32_t property::full_size() const
     {
-        size_t total = size();
-        total += name.length() + 5;
+        int32_t total = size();
+        total += static_cast<int32_t>(name.length()) + 5;
         total += 4; //unknown 1
-        total += kind_string().length() + 5;
+        total += static_cast<int32_t>(kind_string().length()) + 5;
         total += 4; //unknown 2
         total += 4; //propsize
         total += 4; //array index
@@ -312,7 +310,7 @@ namespace xcom
         return property_kind_to_string(kind);
     }
 
-    static size_t xcom_string_size(const xcom_string& s)
+    static int32_t xcom_string_size(const xcom_string& s)
     {
         if (s.str.empty()) {
             // Empty strings are always 4 bytes (for the length)
@@ -323,36 +321,36 @@ namespace xcom
             // Wide string: convert from UTF-8 to UTF16 and return the length of the string * 2 for
             // the character data, plus 4 for the length int, plus 2 for the trailing null character.
             std::u16string tmp16 = util::utf8_to_utf16(s.str);
-            return 6 + 2 * tmp16.length();
+            return 6 + 2 * static_cast<int32_t>(tmp16.length());
         }
         else {
             // Narrow string: convert from UTF-8 to ISO-8859-1 and return the length of the string
             // plus 4 for the length int plus 1 for the trailing null character.
             std::string tmp = util::utf8_to_iso8859_1(s.str);
-            return tmp.length() + 5;
+            return static_cast<int32_t>(tmp.length()) + 5;
         }
     }
 
-    size_t string_property::size() const
+    int32_t string_property::size() const
     {
         return xcom_string_size(str);
     }
 
-    size_t struct_property::full_size() const
+    int32_t struct_property::full_size() const
     {
-        size_t total = property::full_size();
-        total += struct_name.length() + 5 + 4;
+        int32_t total = property::full_size();
+        total += static_cast<int32_t>(struct_name.length()) + 5 + 4;
         return total;
     }
 
-    size_t struct_property::size() const
+    int32_t struct_property::size() const
     {
         // Size does not include the struct name itself
         if (native_data_length > 0) {
             return native_data_length;
         }
         else {
-            size_t total = 0;
+            int32_t total = 0;
 
             std::for_each(properties.begin(), properties.end(), [&total](const property_ptr &prop) {
                 total += prop->full_size();
@@ -364,9 +362,9 @@ namespace xcom
         }
     }
 
-    size_t enum_array_property::size() const
+    int32_t enum_array_property::size() const
     {
-        size_t total = 4; // the array bound
+        int32_t total = 4; // the array bound
 
         for (const enum_value &e : elements) {
             if (e.name.length() == 0) {
@@ -374,17 +372,18 @@ namespace xcom
             }
             else {
                 std::string tmp = util::utf8_to_iso8859_1(e.name);
-                total += 9 + tmp.length(); // non-empty strings have length 4 + string length for the string + 1 for
-                                           // the terminating null + 4 for the number following the string.
+                // non-empty strings have length 4 + string length for the string + 1 for
+                // the terminating null + 4 for the number following the string.
+                total += 9 + static_cast<int32_t>(tmp.length()); 
             }
         }
 
         return total;
     }
 
-    size_t string_array_property::size() const
+    int32_t string_array_property::size() const
     {
-        size_t total = 4; // the array bound
+        int32_t total = 4; // the array bound
 
         for (const xcom_string &s : elements) {
             total += xcom_string_size(s);

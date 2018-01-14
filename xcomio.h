@@ -34,7 +34,7 @@ namespace xcom
     class xcom_io
     {
     public:
-        static const constexpr size_t initial_size = 1024 * 1024;
+        static const constexpr int32_t initial_size = 1024 * 1024;
 
         // Construct an xcom_io object from an existing buffer (e.g.
         // a raw save file).
@@ -92,7 +92,7 @@ namespace xcom
         };
 
         // Seek to a position within the buffer based on the seek_kind
-        void seek(seek_kind k, size_t offset);
+        void seek(seek_kind k, std::ptrdiff_t offset);
 
         // Compute a crc over the next length bytes from the cursor.
         uint32_t crc(size_t length);
@@ -120,11 +120,11 @@ namespace xcom
         unsigned char read_byte();
 
         // Read count bytes from the save
-        std::unique_ptr<unsigned char[]> read_raw_bytes(size_t count);
+        std::unique_ptr<unsigned char[]> read_raw_bytes(int32_t count);
 
         // Read count bytes from the save and store them in the buffer pointed
         // to by outp.
-        void read_raw_bytes(size_t count, unsigned char *outp);
+        void read_raw_bytes(int32_t count, unsigned char *outp);
 
         // Ensure enough space exists in the internal buffer to hold count bytes.
         void ensure(size_t count);
@@ -150,7 +150,7 @@ namespace xcom
         void write_byte(unsigned char c);
 
         // Write len bytes pointed to by buf
-        void write_raw(unsigned char *buf, size_t len);
+        void write_raw(unsigned char *buf, int32_t len);
 
     protected:
         // The buffer itself, always points to the start of the owned memory.

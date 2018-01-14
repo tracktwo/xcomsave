@@ -48,7 +48,7 @@ namespace xcom
             // Not supported.
             fprintf(stderr, 
                 "Error: File does not appear to be a supported xcom save: got version %d\n",
-                hdr.version);
+                static_cast<int32_t>(hdr.version));
             return{ xcom_version::invalid };
         }
 
@@ -171,14 +171,13 @@ namespace xcom
     // struct_array_property, string_array_property, or enum_array property if it
     // can successfully determine what kind of array it is, or last_array_property
     // if it cannot determine.
-    static property::kind_t determine_array_property_kind(xcom_io &r,
-            uint32_t array_data_size)
+    static property::kind_t determine_array_property_kind(xcom_io &r)
     {
         // Save the current position so we can rewind to it
         struct reset_position {
             reset_position(xcom_io &r) : r_(r), ofs_(r.offset()) {}
             ~reset_position() {
-                r_.seek(xcom_io::seek_kind::start, ofs_);
+                r_.seek(xcom_io::seek_kind::start, static_cast<int32_t>(ofs_));
             }
             xcom_io& r_;
             size_t ofs_;
@@ -212,7 +211,7 @@ namespace xcom
 
         // We didn't find a string. It should've been an int (0 for structs, or an enum value for
         // enums).
-        int32_t tmp = r.read_int();
+        (void)r.read_int();
 
         // Now we should have a string: Either the next enum value for an enum or a property kind
         // string for a struct property.
@@ -277,7 +276,7 @@ namespace xcom
                 return std::make_unique<number_array_property>(name, std::move(elems));
             }
             else {
-                property::kind_t kind = determine_array_property_kind(r, array_data_size);
+                property::kind_t kind = determine_array_property_kind(r);
                 switch (kind) {
                 case property::kind_t::struct_array_property:
                 {
@@ -487,7 +486,7 @@ namespace xcom
 
             chk.properties = read_properties(r);
             if ((r.offset() - static_cast<int32_t>(start_offset)) < prop_length) {
-                chk.pad_size = prop_length - (r.offset() - start_offset);
+                chk.pad_size = static_cast<int32_t>(prop_length - (r.offset() - start_offset));
 
                 for (unsigned int i = 0; i < chk.pad_size; ++i) {
                     if (r.read_byte() != 0) {
@@ -592,13 +591,13 @@ namespace xcom
         return checkpoints;
     }
 
-    size_t calculate_uncompressed_size(xcom_io &r)
+    int32_t calculate_uncompressed_size(xcom_io &r)
     {
         // The compressed data begins 1024 bytes into the file.
         //const unsigned char* p = r.start_.get() + 1024;
 
-        size_t compressed_size;
-        size_t uncompressed_size = 0;
+        int32_t compressed_size;
+        int32_t uncompressed_size = 0;
         r.seek(xcom_io::seek_kind::start, compressed_data_start);
 
         do
@@ -627,7 +626,7 @@ namespace xcom
         return uncompressed_size;
     }
 
-    unsigned long decompress_one_chunk(xcom_version version, const unsigned char *compressed_start, unsigned long compressed_size, unsigned char *decompressed_start, unsigned long decompressed_size)
+    uint32_t decompress_one_chunk(xcom_version version, const unsigned char *compressed_start, unsigned long compressed_size, unsigned char *decompressed_start, unsigned long decompressed_size)
     {
         switch (version)
         {
@@ -640,7 +639,7 @@ namespace xcom
                     throw std::runtime_error("LZO decompress of save data failed\n");
                 }
 
-                return out_decompressed_size;
+                return static_cast<uint32_t>(out_decompressed_size);
             }
 
             case xcom_version::enemy_within_android:
@@ -667,7 +666,7 @@ namespace xcom
 
     buffer<unsigned char> decompress(xcom_io &r, xcom_version version)
     {
-        size_t total_uncompressed_size = calculate_uncompressed_size(r);
+        int32_t total_uncompressed_size = calculate_uncompressed_size(r);
         if (total_uncompressed_size < 0) {
             throw format_exception(r.offset(), "Found no uncompressed data in save\n");
         }
@@ -677,7 +676,7 @@ namespace xcom
         r.seek(xcom_io::seek_kind::start, compressed_data_start);
         
         unsigned char *outp = buf.get();
-        unsigned long bytes_remaining = total_uncompressed_size;
+        int32_t bytes_remaining = total_uncompressed_size;
 
         do
         {
@@ -695,8 +694,8 @@ namespace xcom
 
             // Uncompressed size is at p+12
             int32_t uncompressed_size = r.read_int();
-            unsigned long decomp_size = decompress_one_chunk(version, r.pointer() + 8, compressed_size, outp, bytes_remaining);
-            if (decomp_size != uncompressed_size)
+            uint32_t decomp_size = decompress_one_chunk(version, r.pointer() + 8, compressed_size, outp, bytes_remaining);
+            if (static_cast<int32_t>(decomp_size) != uncompressed_size)
             {
                 throw format_exception(r.offset(), "Failed to decompress chunk\n");
             }
@@ -708,7 +707,7 @@ namespace xcom
             bytes_remaining -= uncompressed_size;
         } while (!r.eof());
 
-        return{ std::move(buf), total_uncompressed_size };
+        return{ std::move(buf), static_cast<size_t>(total_uncompressed_size) };
     }
 
     buffer<unsigned char> read_file(const std::string& filename)
