@@ -1,7 +1,7 @@
 cmake_minimum_required (VERSION 3.0)
 
 project (xcomsave)
-set (xcomsave_sources minilzo-2.09/minilzo.c xcomio.cpp xcomreader.cpp xcomwriter.cpp util.cpp)
+set (xcomsave_sources minilzo-2.09/minilzo.c xcomio.cpp xcomreader.cpp xcomwriter.cpp util.cpp xcomerror.cpp)
 set (xcomsave_headers xcomio.h xcom.h util.h)
 
 # Linux-specific configuration

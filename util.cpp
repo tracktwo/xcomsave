@@ -412,13 +412,4 @@ namespace xcom
         int instance = std::stoi(actorName.substr(underscore + 1));
         return std::make_tuple(package, cls, instance + 1);
     }
-
-    format_exception::format_exception(std::ptrdiff_t offset, const char *msg, ...)
-    {
-        va_list args;
-        va_start(args, msg);
-        vsnprintf(buf_, sizeof buf_, msg, args);
-        va_end(args);
-        offset_ = offset;
-    }
 }

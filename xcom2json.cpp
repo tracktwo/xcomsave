@@ -612,12 +612,8 @@ int main(int argc, char *argv[])
         json_writer w{ outfile };
         buildJson(save, w);
     }
-    catch (format_exception e) {
-        fprintf(stderr, "Error (0x%08td): ", e.offset());
-        fprintf(stderr, "%s", e.what());
-    }
-    catch (std::exception e) {
-        fprintf(stderr, "%s", e.what());
+    catch (const error::xcom_exception& e) {
+        fprintf(stderr, "%s", e.what().c_str());
         return 1;
     }
 }

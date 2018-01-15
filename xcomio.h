@@ -91,6 +91,9 @@ namespace xcom
             end
         };
 
+        // Check at least 'count' bytes remain in buffer.
+        bool bounds_check(size_t count) const;
+
         // Seek to a position within the buffer based on the seek_kind
         void seek(seek_kind k, std::ptrdiff_t offset);
 

@@ -763,22 +763,51 @@ namespace xcom
         checkpoint_chunk_table checkpoints;
     };
 
-    // An exception reading or writing the file
-    struct format_exception : public std::exception
-    {
-        format_exception(std::ptrdiff_t ofs, const char *fmt, ...);
-        std::ptrdiff_t offset() const noexcept { return offset_; };
-        const char *what() const noexcept { return buf_; }
-
-    protected:
-        std::ptrdiff_t offset_;
-        char buf_[1024];
-    };
-
     saved_game read_xcom_save(const std::string &infile);
     saved_game read_xcom_save(buffer<unsigned char>&& buf);
     void write_xcom_save(const saved_game &save, const std::string &outfile);
     buffer<unsigned char> write_xcom_save(const saved_game &save);
 
+    // Errors
+    namespace error {
+        struct xcom_exception {
+            virtual std::string what() const noexcept = 0;
+        };
+
+        struct unsupported_version : xcom_exception
+        {
+            unsupported_version(int32_t v) : version_{ v }
+            {}
+
+            virtual std::string what() const noexcept;
+            private:
+                int32_t version_;
+        };
+
+        struct crc_mismatch : xcom_exception
+        {
+            crc_mismatch(uint32_t expected, uint32_t actual, bool is_header_crc) :
+                expected_{expected}, actual_{actual}, is_header_crc_{is_header_crc}
+            {}
+
+            virtual std::string what() const noexcept;
+            private:
+                uint32_t expected_; // the expected CRC from the save
+                uint32_t actual_; // computed CRC
+                bool is_header_crc_; // header (true) or payload (false) CRC
+        };
+
+        // An exception reading or writing the file
+        struct format_exception : xcom_exception
+        {
+            format_exception(std::ptrdiff_t ofs, const char *fmt, ...);
+            std::ptrdiff_t offset() const noexcept { return offset_; };
+            virtual std::string what() const noexcept;
+
+            protected:
+                std::ptrdiff_t offset_;
+                char buf_[1024];
+        };
+    }
 } // namespace xcom
 #endif // XCOM_H

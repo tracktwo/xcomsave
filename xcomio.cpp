@@ -55,8 +55,16 @@ namespace xcom
         }
     }
 
+    bool xcom_io::bounds_check(size_t count) const
+    {
+        return (length_ >= (offset() + count));
+    }
+
     int32_t xcom_io::read_int()
     {
+        if (!bounds_check(4)) {
+            throw error::format_exception(offset(), "read_int: EOF");
+        }
         int32_t v = *(reinterpret_cast<const int32_t*>(ptr_));
         ptr_ += 4;
         return v;
@@ -64,6 +72,9 @@ namespace xcom
 
     float xcom_io::read_float()
     {
+        if (!bounds_check(4)) {
+            throw error::format_exception(offset(), "read_float: EOF");
+        }
         float f = *(reinterpret_cast<const float*>(ptr_));
         ptr_ += 4;
         return f;
@@ -76,6 +87,8 @@ namespace xcom
 
     unsigned char xcom_io::read_byte()
     {
+        if (!bounds_check(1))
+            throw error::format_exception(offset(), "read_byte: EOF");
         return *ptr_++;
     }
 
@@ -84,7 +97,7 @@ namespace xcom
         xcom_string s = read_unicode_string();
         if (s.is_wide)
         {
-            throw format_exception(offset(), "Found UTF-16 string in unexpected location");
+            throw error::format_exception(offset(), "found UTF-16 string in unexpected location");
         }
         return s.str;
     }
@@ -101,10 +114,9 @@ namespace xcom
             // A UTF-16 encoded string.
             length = -length;
 
-            // Sanity check
-            if ((offset() + static_cast<size_t>(length)) > length_) {
+            if (!bounds_check(length)) {
                 if (throw_on_error) {
-                    throw format_exception(offset(), "read_string found an invalid string length.");
+                    throw error::format_exception(offset(), "read_string found an invalid string length");
                 }
                 else {
                     return{ "", false };
@@ -115,11 +127,9 @@ namespace xcom
             return{ util::utf16_to_utf8(str), true };
         }
         else {
-
-            // Sanity check
-            if ((offset() + static_cast<size_t>(length)) > length_) {
+            if (!bounds_check(length)) {
                 if (throw_on_error) {
-                    throw format_exception(offset(), "read_string found an invalid string length.");
+                    throw error::format_exception(offset(), "read_string found an invalid string length");
                 }
                 else {
                     return{ "", false };
@@ -135,7 +145,7 @@ namespace xcom
             if (static_cast<int32_t>(actual_length) != (length - 1))
             {
                 if (throw_on_error) {
-                    throw format_exception(offset(), "String mismatch: expected length %d but found %d\n", length, actual_length);
+                    throw error::format_exception(offset(), "string mismatch: expected length %d but found %d", length, actual_length);
                 }
                 else {
                     return{ "", false };
@@ -148,6 +158,10 @@ namespace xcom
 
     std::unique_ptr<unsigned char[]> xcom_io::read_raw_bytes(int32_t count)
     {
+        if (!bounds_check(count)) {
+            throw error::format_exception(offset(),
+                "read_raw_bytes: EOF when trying to read %d bytes", count);
+        }
         std::unique_ptr<unsigned char[]> buf = std::make_unique<unsigned char[]>(count);
         read_raw_bytes(count, buf.get());
         return buf;
@@ -155,6 +169,10 @@ namespace xcom
 
     void xcom_io::read_raw_bytes(int32_t count, unsigned char *outp)
     {
+        if (!bounds_check(count)) {
+            throw error::format_exception(offset(),
+                "read_raw_bytes: EOF when trying to read %d bytes", count);
+        }
         memcpy(outp, ptr_, count);
         ptr_ += count;
     }

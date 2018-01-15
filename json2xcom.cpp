@@ -761,12 +761,8 @@ int main(int argc, char *argv[])
         saved_game save = build_save(jsonsave);
         write_xcom_save(save, outfile);
     }
-    catch (format_exception e) {
-        fprintf(stderr, "Error (0x%08td): ", e.offset());
-        fprintf(stderr, "%s", e.what());
-    }
-    catch (std::exception e) {
-        fprintf(stderr, "%s", e.what());
+    catch (const error::xcom_exception& e) {
+        fprintf(stderr, "%s", e.what().c_str());
         return 1;
     }
 }

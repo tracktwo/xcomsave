@@ -52,6 +52,14 @@ namespace xcom
         w.seek(xcom_io::seek_kind::start, offset);
         w.write_int(compressed_crc);
 
+        // Write the profile information (android only)
+        if (hdr.version == xcom_version::enemy_within_android) {
+            // Profile info is 12 bytes after the CRC
+            w.seek(xcom_io::seek_kind::current, 12);
+            w.write_int(hdr.profile_number);
+            w.write_unicode_string(hdr.profile_date);
+        }
+
         // Compute the CRC for the header (except android)
         if (hdr.version != xcom_version::enemy_within_android) {
             int32_t hdr_length = static_cast<int32_t>(w.offset() + 4);
@@ -200,9 +208,9 @@ namespace xcom
         virtual void visit(struct_array_property *prop) override
         {
             io_.write_int(static_cast<int32_t>(prop->elements.size()));
-            std::for_each(prop->elements.begin(), prop->elements.end(), 
+            std::for_each(prop->elements.begin(), prop->elements.end(),
                 [this](const property_list &pl) {
-                    std::for_each(pl.begin(), pl.end(), 
+                    std::for_each(pl.begin(), pl.end(),
                         [this](const property_ptr& p) {
                             write_property(io_, p, 0);
                         });
@@ -231,7 +239,7 @@ namespace xcom
         // contained properties, not the fake static array property created to
         // contain it.
         if (prop->kind == property::kind_t::static_array_property) {
-            static_array_property* static_array = 
+            static_array_property* static_array =
                 dynamic_cast<static_array_property*>(prop.get());
             for (unsigned int idx = 0; idx < static_array->properties.size(); ++idx) {
                 write_property(w, static_array->properties[idx], idx);
@@ -264,12 +272,12 @@ namespace xcom
         w.write_int(chk.rotator[2]);
         w.write_string(chk.class_name);
         int32_t total_property_size = 0;
-        std::for_each(chk.properties.begin(), chk.properties.end(), 
+        std::for_each(chk.properties.begin(), chk.properties.end(),
             [&total_property_size](const property_ptr& prop) {
                 total_property_size += prop->full_size();
             });
         // length of trailing "None" to terminate the list + the unknown int.
-        total_property_size += 9 + 4; 
+        total_property_size += 9 + 4;
         total_property_size += chk.pad_size;
         w.write_int(total_property_size);
         for (unsigned int i = 0; i < chk.properties.size(); ++i) {
