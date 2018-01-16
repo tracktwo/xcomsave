@@ -44,6 +44,12 @@ add_executable (json2xcom ${json2xcom_sources} ${json2xcom_headers})
 set_target_properties (json2xcom PROPERTIES LINKER_LANGUAGE CXX)
 target_link_libraries(json2xcom xcomsave zlib)
 
+#  Unix builds need libiconv
+if (UNIX)
+target_link_libraries(json2xcom iconv)
+target_link_libraries(xcom2json iconv)
+endif (UNIX)
+
 # g++ needs -lstdc++fs for filesystem support.
 if (CMAKE_COMPILER_IS_GNUCXX)
     target_link_libraries(json2xcom stdc++fs)
