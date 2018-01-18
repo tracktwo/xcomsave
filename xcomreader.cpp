@@ -39,7 +39,7 @@ namespace xcom
         header hdr;
         hdr.version = static_cast<xcom_version>(r.read_int());
         if (!supported_version(hdr.version)) {
-            throw error::unsupported_version(static_cast<int32_t>(hdr.version));
+            throw error::unsupported_version(hdr.version);
         }
 
         hdr.uncompressed_size = r.read_int();
@@ -625,7 +625,7 @@ namespace xcom
                 lzo_uint out_decompressed_size = decompressed_size;
                 if (lzo1x_decompress_safe(compressed_start, compressed_size, decompressed_start,
                     &out_decompressed_size, nullptr) != LZO_E_OK) {
-                    throw std::runtime_error("LZO decompress of save data failed\n");
+                        throw xcom::error::general_exception("LZO decompress of save data failed");
                 }
 
                 return static_cast<uint32_t>(out_decompressed_size);
@@ -649,7 +649,7 @@ namespace xcom
             break;
 
             default:
-                throw error::unsupported_version(static_cast<int32_t>(version));
+                throw error::unsupported_version(version);
         }
     }
 
@@ -704,22 +704,22 @@ namespace xcom
         buffer<unsigned char> buffer;
         FILE *fp = fopen(filename.c_str(), "rb");
         if (fp == nullptr) {
-            throw std::runtime_error("Error opening file\n");
+            throw xcom::error::general_exception("error opening file");
         }
 
         if (fseek(fp, 0, SEEK_END) != 0) {
-            throw std::runtime_error("Error determining file length\n");
+            throw xcom::error::general_exception("error determining file length");
         }
 
         buffer.length = ftell(fp);
 
         if (fseek(fp, 0, SEEK_SET) != 0) {
-            throw std::runtime_error("Error determining file length\n");
+            throw xcom::error::general_exception("error determining file length");
         }
 
         buffer.buf = std::make_unique<unsigned char[]>(buffer.length);
         if (fread(buffer.buf.get(), 1, buffer.length, fp) != buffer.length) {
-            throw std::runtime_error("Error reading file contents\n");
+            throw xcom::error::general_exception("error reading file contents");
         }
 
         fclose(fp);
@@ -749,7 +749,5 @@ namespace xcom
     {
         return read_xcom_save(read_file(infile));
     }
-
-
 
 } //namespace xcom

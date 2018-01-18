@@ -141,9 +141,9 @@ namespace xcom
                 return c - 'F' + 10;
             }
 
-            std::string str = "Unexpected hex character: ";
+            std::string str = "unexpected hex character: ";
             str.append(1, c);
-            throw std::runtime_error(str.c_str());
+            throw xcom::error::general_exception(str);
         }
 
         std::string to_hex(const unsigned char *data, size_t length)
@@ -240,8 +240,8 @@ namespace xcom
             int32_t result = iconv(cd, const_cast<char **>(&in_buf), &in_length, 
                     &out_buf, &out_length);
             if (result < 0) {
-                throw std::runtime_error(
-                        "Failed to convert all characters from utf-8 to utf-16");
+                throw xcom::error::general_exception(
+                        "failed to convert all characters from utf-8 to utf-16");
             }
             return std::u16string{ out_ptr.get() };
         }
@@ -257,8 +257,8 @@ namespace xcom
             int32_t result = iconv(cd, const_cast<char **>(&in_buf), &in_length,
                     &out_buf, &out_length);
             if (result < 0) {
-                throw std::runtime_error(
-                        "Failed to convert all characters from utf-16 to utf-8");
+                throw xcom::error::general_exception(
+                        "failed to convert all characters from utf-16 to utf-8");
             }
             return std::string{ out_ptr.get() };
         }
@@ -300,8 +300,8 @@ namespace xcom
         case property::kind_t::static_array_property: return "StaticArrayProperty";
         default:
             std::stringstream err;
-            err << "Invalid property kind: " << static_cast<int>(kind) << std::endl;
-            throw std::runtime_error(err.str().c_str());
+            err << "invalid property kind: " << static_cast<int>(kind) << std::endl;
+            throw xcom::error::general_exception(err.str());
         }
     }
 

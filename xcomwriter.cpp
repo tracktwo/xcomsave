@@ -226,7 +226,7 @@ namespace xcom
             // This shouldn't happen: static arrays need special handling and
             // can't be written normally as they don't really exist in the save
             // format.
-            throw std::runtime_error("Attempted to write a static array property\n");
+            throw xcom::error::general_exception("attempted to write a static array property");
         }
 
     private:
@@ -339,7 +339,7 @@ namespace xcom
                 lzo_uint out_compressed_size = bytes_compressed;
                 if (lzo1x_1_compress(chunk_start, chunk_size,
                     output_start, &out_compressed_size, lzo_work_buffer) != LZO_E_OK) {
-                    throw std::runtime_error("Failed to compress chunk\n");
+                    throw xcom::error::general_exception("failed to compress chunk");
                 }
                 return static_cast<unsigned long>(out_compressed_size);
             }
@@ -361,7 +361,7 @@ namespace xcom
             }
 
             default:
-                throw std::runtime_error("Unexpected version\n");
+                throw xcom::error::unsupported_version(version);
         }
     }
 
@@ -429,7 +429,7 @@ namespace xcom
         xcom_io w{};
 
         if (!supported_version(save.hdr.version)) {
-            throw std::runtime_error("Unsupported version in save data.\n");
+            throw xcom::error::unsupported_version(save.hdr.version);
         }
         write_actor_table(w, save.actors);
         write_checkpoint_chunks(w, save.checkpoints);

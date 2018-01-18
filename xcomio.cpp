@@ -189,7 +189,7 @@ namespace xcom
         if ((current_count + count) > length_) {
             int32_t new_length = static_cast<int32_t>(length_ * 2);
             if (new_length < 0) {
-                throw std::runtime_error("Save file overflow\n");
+                throw xcom::error::general_exception("save file overflow");
             }
             unsigned char * new_buffer = new unsigned char[new_length];
             memcpy(new_buffer, start_.get(), current_count);
@@ -213,7 +213,7 @@ namespace xcom
         else if (s.is_wide) {
             std::u16string conv16 = util::utf8_to_utf16(s.str);
             if ((conv16.length() + 1) > static_cast<size_t>(std::numeric_limits<int32_t>::max())) {
-                throw std::runtime_error("string too long");
+                throw xcom::error::general_exception("string too long");
             }
 
             int32_t terminated_character_count = static_cast<int32_t>(conv16.length()) + 1;
@@ -237,7 +237,7 @@ namespace xcom
             // Looks like it's an ASCII/Latin-1 string.
             std::string conv = util::utf8_to_iso8859_1(s.str);
             if ((conv.length() + 1) > static_cast<size_t>(std::numeric_limits<int32_t>::max())) {
-                throw std::runtime_error("string too long\n");
+                throw xcom::error::general_exception("string too long\n");
             }
 
             int32_t terminated_character_count = static_cast<int32_t>(conv.length()) + 1;

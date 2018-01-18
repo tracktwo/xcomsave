@@ -774,14 +774,22 @@ namespace xcom
             virtual std::string what() const noexcept = 0;
         };
 
+        struct general_exception : xcom_exception
+        {
+            general_exception(const std::string& s) : str_{s} {}
+            virtual std::string what() const noexcept { return str_; }
+        private:
+            std::string str_;
+        };
+
         struct unsupported_version : xcom_exception
         {
-            unsupported_version(int32_t v) : version_{ v }
-            {}
+            unsupported_version(int32_t v) : version_{ v } {}
+            unsupported_version(xcom_version v) : version_{static_cast<int32_t>(v)} {}
 
             virtual std::string what() const noexcept;
-            private:
-                int32_t version_;
+        private:
+            int32_t version_;
         };
 
         struct crc_mismatch : xcom_exception
@@ -791,10 +799,10 @@ namespace xcom
             {}
 
             virtual std::string what() const noexcept;
-            private:
-                uint32_t expected_; // the expected CRC from the save
-                uint32_t actual_; // computed CRC
-                bool is_header_crc_; // header (true) or payload (false) CRC
+        private:
+            uint32_t expected_; // the expected CRC from the save
+            uint32_t actual_; // computed CRC
+            bool is_header_crc_; // header (true) or payload (false) CRC
         };
 
         // An exception reading or writing the file
@@ -804,9 +812,9 @@ namespace xcom
             std::ptrdiff_t offset() const noexcept { return offset_; };
             virtual std::string what() const noexcept;
 
-            protected:
-                std::ptrdiff_t offset_;
-                char buf_[1024];
+        protected:
+            std::ptrdiff_t offset_;
+            char buf_[1024];
         };
     }
 } // namespace xcom
