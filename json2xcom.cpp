@@ -56,9 +56,23 @@ struct json_shape_exception : xcom::error::xcom_exception
             return stream.str(); 
     }
 
-    private:
-        std::string node_;
-        std::string error_;
+private:
+    std::string node_;
+    std::string error_;
+};
+
+struct io_exception : xcom::error::xcom_exception
+{
+    io_exception(const std::string& s) : str_{s} {}
+    virtual std::string what() const noexcept
+    {
+        std::ostringstream stream;
+        stream << "Error: " << str_ << std::endl; 
+        return stream.str();
+    }
+
+private:
+    std::string str_;
 };
 
 static property_dispatch dispatch_table[] = {
@@ -679,25 +693,22 @@ buffer<char> read_file(const std::string& filename)
 {
     FILE *fp = fopen(filename.c_str(), "rb");
     if (fp == nullptr) {
-        fprintf(stderr, "Error opening file %s\n", filename.c_str());
-        return{};
+        throw io_exception("error opening file");
     }
 
     if (fseek(fp, 0, SEEK_END) != 0) {
-        fprintf(stderr, "Error determining file length\n");
-        return{};
+        throw io_exception("error determining file length");
     }
 
     size_t file_length = ftell(fp);
 
     if (fseek(fp, 0, SEEK_SET) != 0) {
-        fprintf(stderr, "Error determining file length\n");
-        return{};
+        throw io_exception("error determining file length");
     }
 
     std::unique_ptr<char[]> file_buf = std::make_unique<char[]>(file_length + 1);
     if (fread(file_buf.get(), 1, file_length, fp) != file_length) {
-        fprintf(stderr, "Error reading file contents\n");
+        throw io_exception("error reading file contents");
         return{};
     }
     file_buf[file_length] = 0;
@@ -758,9 +769,13 @@ int main(int argc, char *argv[])
     try {
         saved_game save = build_save(jsonsave);
         write_xcom_save(save, outfile);
+        return 0;
     }
     catch (const error::xcom_exception& e) {
         fprintf(stderr, "%s", e.what().c_str());
         return 1;
     }
+    
+    fprintf(stderr, "Error: unknown error\n");
+    return 1;
 }

@@ -611,9 +611,13 @@ int main(int argc, char *argv[])
         saved_game save = read_xcom_save(infile);
         json_writer w{ outfile };
         buildJson(save, w);
+        return 0;
     }
     catch (const error::xcom_exception& e) {
         fprintf(stderr, "%s", e.what().c_str());
         return 1;
     }
+
+    fprintf(stderr, "Error: unknown error.\n");
+    return 1;
 }
