@@ -17,7 +17,7 @@ You may use the "o" option to define the output file name: `json2xcom -o <output
 
 **Note**: 
 1. XCOM:EW savegame files have no extension.
-2. DO NOT use MS notepad on an international installation. File encoding is utf-8 and MS notepad might have a probelm with that.
+2. DO NOT use MS notepad on an international installation. File encoding is utf-8 and MS notepad might have a problem with that.
 3. Currently only geoscape saves can be edited. 
 
 

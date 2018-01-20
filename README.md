@@ -31,13 +31,12 @@ tested to work on Windows and Linux. Mac support should be straightforward to ad
 
 ### All Platforms
 
-
-
 CMake is needed for all platforms. Run it on the provided CMakeLists.txt file to build the project/build files for your 
 platform. I recommend running it from a subdirectory (e.g. build) so it doesn't pollute the main repo with build
 artifacts.
 
-Use `git clone --recursive ` to obtain the source otherwise submodule `json11` will disappear.
+Use `git clone --recursive` to obtain the source otherwise the required `json11` and `zlib` submodules will not be populated
+and will need to be manually updated after cloning.
 
 ### Windows
 
@@ -48,4 +47,7 @@ Studio will not.
 
 Requires GCC (or Clang), libiconv, and GNU make. Tested on Debian 8.
 
+### MacOS X
 
+The C++ compilers bundled with Xcode as of version 9.2 are too old to build this project. A more recent build of GCC or Clang
+is required, for example from Homebrew.
