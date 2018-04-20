@@ -182,12 +182,27 @@ namespace xcom
             return property::kind_t::last_property;
         }
 
-        // If the first thing we get is a "None", then this is a struct
-        // property with all default values in the first element.
+        // If the first thing we get is a "None", we have an ambiguity. This could be
+        // a struct array (as in XGExaltSimulation.m_arrCellData) where the "None"
+        // indicates a struct element with all default property values. Or it could be
+        // an enum array (as in XGExaltSimulation.m_arrCellLastVisibilityData) where "None"
+        // presumably indicates the 0 value of the enumeration?
+        //
+        // Either way, we don't know how to parse this yet. There should be a 0 int after
+        // the "None" to complete this element. Read that and then recursively call this
+        // function to try to determine based on the next array element.
+        //
+        // I'm not sure if it's possible to have an array element here with "None" in every
+        // element. If so this will eventually run off the end of the array and we'd probably
+        // fail to parse the rest of the file. If that happens though we are hosed anyway
+        // as we still won't know whether this is an struct or enum array.
         if (s.str.compare("None") == 0)
         {
-            return property::kind_t::struct_array_property;
+            r.read_int();
+            return determine_array_property_kind(r);
+           // return property::kind_t::struct_array_property;
         }
+
 
         // Try to read another string. If we find a non-zero length string this must be
         // an array of strings. Otherwise it's likely an array of enums or structs.
