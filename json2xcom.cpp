@@ -10,18 +10,16 @@
 
 #if __has_include(<filesystem>)
 #include <filesystem>
-#define FILESYSTEM_NAMESPACE std
+namespace fs = std::filesystem;
 #elif __has_include(<experimental/filesystem>)
 #include <experimental/filesystem>
-#define FILESYSTEM_NAMESPACE std::experimental
+namespace fs = std::experimental::filesystem;
 #else
 #error No <filesystem> support on this platform.
 #endif
 
 using namespace json11;
 using namespace xcom;
-
-namespace fs = FILESYSTEM_NAMESPACE ::filesystem;
 
 struct property_dispatch
 {
