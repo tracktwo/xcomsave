@@ -32,6 +32,7 @@ namespace xcom
     {
         switch (ver)
         {
+        case xcom_version::enemy_unknown:
         case xcom_version::enemy_within:
         case xcom_version::enemy_within_android:
             return true;

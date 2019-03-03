@@ -143,6 +143,8 @@ namespace xcom
         // Write an integer
         void write_int(int32_t val);
 
+        int16_t read_int16();
+
         // Write a single-precision float
         void write_float(float val);
 

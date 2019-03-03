@@ -2,3 +2,7 @@ build/
 test/
 .vs/
 .vscode/
+save10*
+#Qt config files
+*.user
+

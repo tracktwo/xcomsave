@@ -47,7 +47,9 @@ namespace xcom
     }
 
     std::string build_actor_name(const std::string& package, const std::string& cls, int instance);
+    std::string build_actor_name_EU(const std::string& cls, int instance);
     std::tuple<std::string, std::string, int> decompose_actor_name(const std::string& actorName);
+    std::tuple<std::string, int> decompose_actor_name_EU(const std::string& actorName);
     std::string property_kind_to_string(property::kind_t kind);
 }
 #endif // UTIL_H

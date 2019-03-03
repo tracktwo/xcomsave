@@ -32,7 +32,7 @@ namespace xcom
 {
     static const size_t compressed_data_start = 1024;
 
-    property_list read_properties(xcom_io &r);
+    property_list read_properties(xcom_io &r, xcom_version version);
 
     header read_header(xcom_io &r)
     {
@@ -81,7 +81,7 @@ namespace xcom
 
         // CRC the compressed data
         r.seek(xcom_io::seek_kind::start, compressed_data_start);
-        uint32_t computed_compressed_crc = r.crc(r.size() - 1024);
+        uint32_t computed_compressed_crc = r.crc(r.size() - compressed_data_start);
         if (computed_compressed_crc != compressed_crc)
         {
             throw error::crc_mismatch(compressed_crc, computed_compressed_crc, false);
@@ -89,35 +89,49 @@ namespace xcom
         return hdr;
     }
 
-    actor_table read_actor_table(xcom_io &r)
+    actor_table read_actor_table(xcom_io &r, xcom_version version)
     {
         actor_table actors;
         int32_t actor_count = r.read_int();
 
         // We expect all entries to be of the form <package> <0> <actor>
         // <instance>, or two entries per real actor.
-        assert(actor_count % 2 == 0);
+        //can this assert be on the EU version? asssuming no:
+        if(xcom_version::enemy_unknown != version)
+        {
+            assert(actor_count % 2 == 0);
+        }
 
-        for (int i = 0; i < actor_count; i += 2) {
+        const int increment= (xcom_version::enemy_unknown == version)? 1 : 2;
+        
+        for (int i = 0; i < actor_count; i += increment) {
             std::string actor_name = r.read_string();
             int32_t instance = r.read_int();
-            if (instance == 0) {
-                throw error::format_exception(r.offset(),
-                        "malformed actor table entry: expected a non-zero instance");
+
+            if(xcom_version::enemy_unknown == version)
+            {
+                actors.push_back(build_actor_name_EU(actor_name, instance));
             }
-            std::string package = r.read_string();
-            int32_t sentinel = r.read_int();
-            if (sentinel != 0) {
-                throw error::format_exception(r.offset(),
-                        "malformed actor table entry: missing 0 instance");
+            else
+            {
+                if (instance == 0) {
+                    throw error::format_exception(r.offset(),
+                            "malformed actor table entry: expected a non-zero instance");
+                }
+                std::string package = r.read_string();
+                int32_t sentinel = r.read_int();
+                if (sentinel != 0) {
+                    throw error::format_exception(r.offset(),
+                            "malformed actor table entry: missing 0 instance");
+                }
+                actors.push_back(build_actor_name(package, actor_name, instance));
             }
-            actors.push_back(build_actor_name(package, actor_name, instance));
         }
 
         return actors;
     }
 
-    property_ptr make_struct_property(xcom_io& r, const std::string &name)
+    property_ptr make_struct_property(xcom_io& r, const std::string &name, xcom_version version)
     {
         std::string struct_name = r.read_string();
         int32_t inner_unknown = r.read_int();
@@ -151,7 +165,7 @@ namespace xcom
                 r.read_raw_bytes(4), 4);
         }
         else {
-            property_list structProps = read_properties(r);
+            property_list structProps = read_properties(r, version);
             return std::make_unique<struct_property>(name, struct_name,
                     std::move(structProps));
         }
@@ -239,7 +253,7 @@ namespace xcom
 
 
     property_ptr make_array_property(xcom_io &r, const std::string &name,
-            int32_t property_size)
+            int32_t property_size, xcom_version version)
     {
         int32_t array_bound = r.read_int();
         std::unique_ptr<unsigned char[]> array_data;
@@ -287,7 +301,7 @@ namespace xcom
                 {
                     std::vector<property_list> elements;
                     for (int32_t i = 0; i < array_bound; ++i) {
-                        elements.push_back(read_properties(r));
+                        elements.push_back(read_properties(r, version));
                     }
 
                     return std::make_unique<struct_array_property>(name,
@@ -323,7 +337,7 @@ namespace xcom
             array_data_size, array_bound);
     }
 
-    property_list read_properties(xcom_io &r)
+    property_list read_properties(xcom_io &r, xcom_version version)
     {
         property_list properties;
         for (;;)
@@ -350,16 +364,24 @@ namespace xcom
 
             property_ptr prop;
             if (prop_type.compare("ObjectProperty") == 0) {
-                assert(prop_size == 8);
-                int32_t actor1 = r.read_int();
-                int32_t actor2 = r.read_int();
-                if (actor1 != -1 && actor1 != (actor2 + 1)) {
-                    throw error::format_exception(r.offset(),
-                            "actor references in object property not related");
+                if(xcom_version::enemy_unknown == version)
+                {
+                    assert(prop_size == 4);
+                     int32_t actor = r.read_int();
+                     prop = std::make_unique<object_property_EU>(name, actor);
                 }
-
-                prop = std::make_unique<object_property>(name,
-                        (actor1 == -1) ? actor1 : (actor1 / 2));
+                else
+                {
+                    assert(prop_size == 8);
+                    int32_t actor1 = r.read_int();
+                    int32_t actor2 = r.read_int();
+                    if (actor1 != -1 && actor1 != (actor2 + 1)) {
+                        throw error::format_exception(r.offset(),
+                                "actor references in object property not related");
+                    }
+                    prop = std::make_unique<object_property>(name,
+                            (actor1 == -1) ? actor1 : (actor1 / 2));
+                }
             }
             else if (prop_type.compare("IntProperty") == 0) {
                 assert(prop_size == 4);
@@ -395,14 +417,14 @@ namespace xcom
                 prop = std::make_unique<bool_property>(name, val);
             }
             else if (prop_type.compare("ArrayProperty") == 0) {
-                prop = make_array_property(r, name, prop_size);
+                prop = make_array_property(r, name, prop_size, version);
             }
             else if (prop_type.compare("FloatProperty") == 0) {
                 float f = r.read_float();
                 prop = std::make_unique<float_property>(name, f);
             }
             else if (prop_type.compare("StructProperty") == 0) {
-                prop = make_struct_property(r, name);
+                prop = make_struct_property(r, name, version);
             }
             else if (prop_type.compare("StrProperty") == 0) {
                 xcom_string str = r.read_unicode_string();
@@ -466,7 +488,7 @@ namespace xcom
         return properties;
     }
 
-    checkpoint_table read_checkpoint_table(xcom_io &r)
+    checkpoint_table read_checkpoint_table(xcom_io &r, xcom_version version)
     {
         checkpoint_table checkpoints;
         int32_t checkpoint_count = r.read_int();
@@ -489,7 +511,7 @@ namespace xcom
             chk.pad_size = 0;
             size_t start_offset = r.offset();
 
-            chk.properties = read_properties(r);
+            chk.properties = read_properties(r, version);
             if ((r.offset() - static_cast<int32_t>(start_offset)) < prop_length) {
                 chk.pad_size = static_cast<int32_t>(prop_length - (r.offset() - start_offset));
 
@@ -544,7 +566,6 @@ namespace xcom
             if (memcmp(entry.zeros, all_zeros, 8) != 0) {
                 throw error::format_exception(r.offset(),
                         "expected all zeros in name table entry");
-                return{};
             }
             entry.data_length = r.read_int();
 
@@ -555,7 +576,7 @@ namespace xcom
         return names;
     }
 
-    checkpoint_chunk_table read_checkpoint_chunk_table(xcom_io &r)
+    checkpoint_chunk_table read_checkpoint_chunk_table(xcom_io &r, xcom_version version)
     {
         checkpoint_chunk_table checkpoints;
         std::vector<name_table> name_tables;
@@ -569,11 +590,10 @@ namespace xcom
             if (none != "None") {
                 throw error::format_exception(r.offset(),
                     "failed to locate 'None' after actor table");
-                return{};
             }
 
             chunk.unknown_int2 = r.read_int();
-            chunk.checkpoints = read_checkpoint_table(r);
+            chunk.checkpoints = read_checkpoint_table(r, version);
             int32_t name_table_length = r.read_int();
            // assert(name_table_length == 0);
             //TODO
@@ -581,7 +601,7 @@ namespace xcom
                 name_tables.push_back(read_name_table(r));
             }
             chunk.class_name = r.read_string();
-            chunk.actors = read_actor_table(r);
+            chunk.actors = read_actor_table(r, version);
             chunk.unknown_int3 = r.read_int();
             // (only seems to be present for tactical saves?)
             actor_templates.push_back(read_actor_template_table(r));
@@ -754,8 +774,8 @@ namespace xcom
         fclose(fp);
 #endif
         xcom_io uncompressed(std::move(uncompressed_buf));
-        save.actors = read_actor_table(uncompressed);
-        save.checkpoints = read_checkpoint_chunk_table(uncompressed);
+        save.actors = read_actor_table(uncompressed, save.hdr.version);
+        save.checkpoints = read_checkpoint_chunk_table(uncompressed, save.hdr.version);
 
         return save;
     }

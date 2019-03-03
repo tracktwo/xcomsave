@@ -86,6 +86,18 @@ namespace xcom
         }
     }
 
+    static void write_actor_table_EU(xcom_io& w, const actor_table& actors)
+    {
+        // Each actorTable entry has 2 entries in the save table; names are split.
+        w.write_int(static_cast<int32_t>(actors.size() ) );
+        for (const std::string& actor : actors) {
+            std::tuple<std::string, int> tup = decompose_actor_name_EU(actor);
+            w.write_string(std::get<0>(tup));
+             w.write_int(std::get<1>(tup));
+        }
+    }
+    
+    
     struct property_writer_visitor : public property_visitor
     {
         property_writer_visitor(xcom_io& w) : io_(w) {}
@@ -119,13 +131,21 @@ namespace xcom
 
         virtual void visit(object_property *prop) override
         {
-            if (prop->actor == -1) {
-                io_.write_int(prop->actor);
+            //enemy unknown
+            if(4 == prop->size() )
+            {
                 io_.write_int(prop->actor);
             }
-            else {
-                io_.write_int(prop->actor * 2 + 1);
-                io_.write_int(prop->actor * 2);
+            else
+            {
+                if (prop->actor == -1) {
+                    io_.write_int(prop->actor);
+                    io_.write_int(prop->actor);
+                }
+                else {
+                    io_.write_int(prop->actor * 2 + 1);
+                    io_.write_int(prop->actor * 2);
+                }
             }
         }
 
@@ -300,7 +320,7 @@ namespace xcom
         }
     }
 
-    static void write_checkpoint_chunk(xcom_io & w, const checkpoint_chunk& chunk)
+    static void write_checkpoint_chunk(xcom_io & w, const checkpoint_chunk& chunk, xcom_version version)
     {
         w.write_int(chunk.unknown_int1);
         w.write_string(chunk.game_type);
@@ -309,7 +329,14 @@ namespace xcom
         write_checkpoint_table(w, chunk.checkpoints);
         w.write_int(0); // name table length
         w.write_string(chunk.class_name);
-        write_actor_table(w, chunk.actors);
+        if(xcom_version::enemy_unknown != version)
+        {
+            write_actor_table(w, chunk.actors);
+        }
+        else
+        {
+            write_actor_table_EU(w, chunk.actors);
+        }
         w.write_int(chunk.unknown_int3);
         w.write_int(0); // actor template table length
         w.write_string(chunk.display_name);
@@ -317,10 +344,10 @@ namespace xcom
         w.write_int(chunk.unknown_int4);
     }
 
-    static void write_checkpoint_chunks(xcom_io &w, const checkpoint_chunk_table& chunks)
+    static void write_checkpoint_chunks(xcom_io &w, const checkpoint_chunk_table& chunks, xcom_version version)
     {
         for (const checkpoint_chunk& chunk : chunks) {
-            write_checkpoint_chunk(w, chunk);
+            write_checkpoint_chunk(w, chunk, version);
         }
     }
 
@@ -431,8 +458,15 @@ namespace xcom
         if (!supported_version(save.hdr.version)) {
             throw xcom::error::unsupported_version(save.hdr.version);
         }
-        write_actor_table(w, save.actors);
-        write_checkpoint_chunks(w, save.checkpoints);
+        if(xcom_version::enemy_unknown == save.hdr.version)
+        {
+            write_actor_table_EU(w, save.actors);
+        }
+        else
+        {
+            write_actor_table(w, save.actors);
+        }
+        write_checkpoint_chunks(w, save.checkpoints, save.hdr.version);
         xcom_io compressed{ compress(w, save.hdr.version) };
         write_header(compressed, save.hdr);
         return compressed.release();

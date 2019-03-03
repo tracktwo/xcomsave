@@ -33,6 +33,7 @@ namespace xcom
     // The supported saved game version(s)
     enum class xcom_version : uint32_t {
         invalid = 0,
+        enemy_unknown = 0x0f,
         enemy_within = 0x10,
         enemy_within_android = 0x13,
         // xcom2 = 0x14 (not supported)
@@ -275,6 +276,17 @@ namespace xcom
 
         int32_t actor;
     };
+    
+    // An object property refers to an actor.
+    struct object_property_EU : public object_property
+    {
+        object_property_EU(const std::string &n, int32_t a) :
+            object_property(n, a) {}
+        virtual int32_t size() const {
+            return 4;
+        }
+    };
+    
 
     // An int property contains a 32-bit signed integer value.
     struct int_property : public property
