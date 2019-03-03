@@ -131,7 +131,7 @@ namespace xcom
 
         virtual void visit(object_property *prop) override
         {
-            //enemy unknow
+            //enemy unknown
             if(4 == prop->size() )
             {
                 io_.write_int(prop->actor);
