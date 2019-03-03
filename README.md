@@ -58,5 +58,5 @@ is required, for example from Homebrew.
 - [tracktwo](github.com/tracktwo), who created it;
 - [shaygover](github.com/shaygover), who added install instructions;
 - [skywalkerytx](github.com/skywalkerytx), who fixed date problems;
-- [golinski](github.com/golinski), who made the Enemy Unknow version;
-- [Anders1232](github.com/Anders1232), who merged the Enemy Unknow version;
+- [golinski](github.com/golinski), who made the Enemy Unknown version;
+- [Anders1232](github.com/Anders1232), who merged the Enemy Unknown version;
