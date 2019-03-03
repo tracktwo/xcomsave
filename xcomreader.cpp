@@ -97,34 +97,34 @@ namespace xcom
         // We expect all entries to be of the form <package> <0> <actor>
         // <instance>, or two entries per real actor.
         //can this assert be on the EU version? asssuming no:
-    	if(xcom_version::enemy_unknown != version)
+        if(xcom_version::enemy_unknown != version)
         {
-        	assert(actor_count % 2 == 0);
+            assert(actor_count % 2 == 0);
         }
 
-    	const int increment= (xcom_version::enemy_unknown == version)? 1 : 2;
+        const int increment= (xcom_version::enemy_unknown == version)? 1 : 2;
         
         for (int i = 0; i < actor_count; i += increment) {
             std::string actor_name = r.read_string();
             int32_t instance = r.read_int();
 
-        	if(xcom_version::enemy_unknown == version)
+            if(xcom_version::enemy_unknown == version)
             {
-            	actors.push_back(build_actor_name_EU(actor_name, instance));
+                actors.push_back(build_actor_name_EU(actor_name, instance));
             }
-        	else
+            else
             {
-            	if (instance == 0) {
-                	throw error::format_exception(r.offset(),
+                if (instance == 0) {
+                    throw error::format_exception(r.offset(),
                             "malformed actor table entry: expected a non-zero instance");
                 }
-            	std::string package = r.read_string();
-            	int32_t sentinel = r.read_int();
-            	if (sentinel != 0) {
-                	throw error::format_exception(r.offset(),
+                std::string package = r.read_string();
+                int32_t sentinel = r.read_int();
+                if (sentinel != 0) {
+                    throw error::format_exception(r.offset(),
                             "malformed actor table entry: missing 0 instance");
                 }
-            	actors.push_back(build_actor_name(package, actor_name, instance));
+                actors.push_back(build_actor_name(package, actor_name, instance));
             }
         }
 
@@ -364,22 +364,22 @@ namespace xcom
 
             property_ptr prop;
             if (prop_type.compare("ObjectProperty") == 0) {
-            	if(xcom_version::enemy_unknown == version)
+                if(xcom_version::enemy_unknown == version)
                 {
-                	assert(prop_size == 4);
+                    assert(prop_size == 4);
                      int32_t actor = r.read_int();
                      prop = std::make_unique<object_property_EU>(name, actor);
                 }
-            	else
+                else
                 {
-                	assert(prop_size == 8);
-                	int32_t actor1 = r.read_int();
-                	int32_t actor2 = r.read_int();
-                	if (actor1 != -1 && actor1 != (actor2 + 1)) {
-                    	throw error::format_exception(r.offset(),
+                    assert(prop_size == 8);
+                    int32_t actor1 = r.read_int();
+                    int32_t actor2 = r.read_int();
+                    if (actor1 != -1 && actor1 != (actor2 + 1)) {
+                        throw error::format_exception(r.offset(),
                                 "actor references in object property not related");
                     }
-                	prop = std::make_unique<object_property>(name,
+                    prop = std::make_unique<object_property>(name,
                             (actor1 == -1) ? actor1 : (actor1 / 2));
                 }
             }

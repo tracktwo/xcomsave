@@ -686,12 +686,6 @@ saved_game build_save(const Json& json)
 
 void usage(const char * name)
 {
-	printf("json2xcom, a part of xcomsave, a save game editor for xcom games\n");
-	printf("Created by tracktwo, with help from:\n");
-	printf("\t shaygover, who added install instructions\n");
-	printf("\t skywalkerytx, who fixed date problems\n");
-	printf("\t golinski, who made the Enemy Unknow version\n");
-	printf("\t Anders1232, who merged the Enemy Unknow version\n");
     printf("Usage: %s [-o <outfile>] <infile>\n", name);
 }
 

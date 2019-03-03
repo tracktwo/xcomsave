@@ -393,14 +393,14 @@ namespace xcom
     }
 
 
-	std::string build_actor_name(const std::string& package, const std::string& cls, int instance)
+    std::string build_actor_name(const std::string& package, const std::string& cls, int instance)
     {
         std::stringstream ret;
         ret << package << "." << cls << "_" << (instance - 1);
         return ret.str();
     }
     
-	std::string build_actor_name_EU(const std::string& cls, int instance)
+    std::string build_actor_name_EU(const std::string& cls, int instance)
     {
         std::stringstream ret;
         ret << cls << "_" << (instance - 1);
@@ -421,12 +421,12 @@ namespace xcom
         return std::make_tuple(package, cls, instance + 1);
     }
 
-	std::tuple<std::string, int> decompose_actor_name_EU(const std::string& actorName)
+    std::tuple<std::string, int> decompose_actor_name_EU(const std::string& actorName)
     {
         size_t underscore = actorName.find_last_of('_');
 
-    	std::string cls = actorName.substr(0, underscore);
-    	int instance = std::stoi(actorName.substr(underscore + 1) );
+        std::string cls = actorName.substr(0, underscore);
+        int instance = std::stoi(actorName.substr(underscore + 1) );
         return std::make_tuple(cls, instance + 1);
     }
 }
