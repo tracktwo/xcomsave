@@ -8,9 +8,6 @@ completely parse yet. I don't have exhaustive save samples for most languages, b
 read and write English, German, and Russian saves. If you encounter errors reading or writing a save with another language
 please let me know.
 
-For Enemy Unknown saves, please see the fork by golinski: https://github.com/golinski/xcomsave. 
-
-
 ## JSON Utilities
 
 The xcom2json and json2xcom tools convert to and from a JSON representation of the save file. No real processing is done
