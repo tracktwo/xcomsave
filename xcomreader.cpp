@@ -767,6 +767,9 @@ namespace xcom
 
         xcom_io rdr{ std::move(b) };
         save.hdr = read_header(rdr);
+        if (save.hdr.tactical_save) {
+            throw xcom::error::general_exception("Saved games in tactical missions are not supported. Please try again with a geoscape save.");
+        }
         buffer<unsigned char> uncompressed_buf = decompress(rdr, static_cast<xcom_version>(save.hdr.version));
 #ifdef _DEBUG
         FILE *fp = fopen("output.dat", "wb");
