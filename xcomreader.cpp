@@ -654,6 +654,7 @@ namespace xcom
     {
         switch (version)
         {
+            case xcom_version::enemy_unknown:
             case xcom_version::enemy_within:
             {
                 lzo_init();
