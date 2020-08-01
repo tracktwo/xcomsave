@@ -357,6 +357,7 @@ namespace xcom
     {
         switch (version)
         {
+            case xcom_version::enemy_unknown:
             case xcom_version::enemy_within:
             {
                 unsigned long bytes_compressed = output_size;

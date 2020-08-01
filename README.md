@@ -1,7 +1,8 @@
 # xcomsave
 
-An open-source, portable library for reading XCOM Enemy Within save files, plus some small utilities to convert an
-XCOM save to and from a somewhat readable JSON format.
+An open-source, portable library for reading XCOM Enemy Unknown/Enemy Within save files, plus some small utilities to convert an
+XCOM save to and from a somewhat readable JSON format. The utility supports both EU and EW and has also been tested with
+the Android version of the game.
 
 Currently only strategy (geoscape) saves are supported. Tactical saves have a slightly different format that I can't
 completely parse yet. I don't have exhaustive save samples for most languages, but I have used to this to successfully

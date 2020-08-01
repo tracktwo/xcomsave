@@ -108,6 +108,7 @@ bool check_header_shape(xcom_version version, const Json& json, std::string &err
     switch (version)
     {
     case xcom_version::enemy_within:
+    case xcom_version::enemy_unknown:
         return json.has_shape({
             { std::string("version"), Json::NUMBER },
             { std::string("uncompressed_size"), Json::NUMBER },
