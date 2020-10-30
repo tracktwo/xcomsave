@@ -24,27 +24,27 @@ using namespace xcom;
 struct property_dispatch
 {
     std::string name;
-    property_ptr(*func)(const Json& json);
+    property_ptr(*func)(const Json& json, xcom_version version);
 };
 
-property_ptr build_property(const Json& json);
-property_list build_property_list(const Json& json);
+property_ptr build_property(const Json& json, xcom_version version);
+property_list build_property_list(const Json& json, xcom_version version);
 
-property_ptr build_int_property(const Json& json);
-property_ptr build_float_property(const Json& json);
-property_ptr build_bool_property(const Json& json);
-property_ptr build_object_property(const Json& json);
-property_ptr build_string_property(const Json& json);
-property_ptr build_name_property(const Json& json);
-property_ptr build_enum_property(const Json& json);
-property_ptr build_struct_property(const Json& json);
-property_ptr build_array_property(const Json& json);
-property_ptr build_static_array_property(const Json& json);
-property_ptr build_object_array_property(const Json& json);
-property_ptr build_number_array_property(const Json& json);
-property_ptr build_string_array_property(const Json& json);
-property_ptr build_enum_array_property(const Json& json);
-property_ptr build_struct_array_property(const Json& json);
+property_ptr build_int_property(const Json& json, xcom_version version);
+property_ptr build_float_property(const Json& json, xcom_version version);
+property_ptr build_bool_property(const Json& json, xcom_version version);
+property_ptr build_object_property(const Json& json, xcom_version version);
+property_ptr build_string_property(const Json& json, xcom_version version);
+property_ptr build_name_property(const Json& json, xcom_version version);
+property_ptr build_enum_property(const Json& json, xcom_version version);
+property_ptr build_struct_property(const Json& json, xcom_version version);
+property_ptr build_array_property(const Json& json, xcom_version version);
+property_ptr build_static_array_property(const Json& json, xcom_version version);
+property_ptr build_object_array_property(const Json& json, xcom_version version);
+property_ptr build_number_array_property(const Json& json, xcom_version version);
+property_ptr build_string_array_property(const Json& json, xcom_version version);
+property_ptr build_enum_array_property(const Json& json, xcom_version version);
+property_ptr build_struct_array_property(const Json& json, xcom_version version);
 
 struct json_shape_exception : xcom::error::xcom_exception
 {
@@ -88,7 +88,7 @@ static property_dispatch dispatch_table[] = {
     { "StaticArrayProperty", build_static_array_property }
 };
 
-xcom_string build_unicode_string(const Json& json)
+xcom_string build_unicode_string(const Json& json, xcom_version version)
 {
     Json::shape shape = {
         { "str", Json::STRING },
@@ -163,8 +163,8 @@ header build_header(const Json& json)
     hdr.uncompressed_size = json["uncompressed_size"].int_value();
     hdr.game_number = json["game_number"].int_value();
     hdr.save_number = json["save_number"].int_value();
-    hdr.save_description = build_unicode_string(json["save_description"]);
-    hdr.time = build_unicode_string(json["time"]);
+    hdr.save_description = build_unicode_string(json["save_description"], hdr.version);
+    hdr.time = build_unicode_string(json["time"], hdr.version);
     hdr.map_command = json["map_command"].string_value();
     hdr.tactical_save = json["tactical_save"].bool_value();
     hdr.ironman = json["ironman"].bool_value();
@@ -174,7 +174,7 @@ header build_header(const Json& json)
 
     if (hdr.version == xcom_version::enemy_within_android) {
         hdr.profile_number = json["profile_number"].int_value();
-        hdr.profile_date = build_unicode_string(json["profile_date"]);
+        hdr.profile_date = build_unicode_string(json["profile_date"], hdr.version);
     }
 
     return hdr;
@@ -206,7 +206,7 @@ float value_from_json(const Json& json)
 
 
 template <typename T>
-std::array<T, 3> build_array(const Json& json)
+std::array<T, 3> build_array(const Json& json, [[maybe_unused]] xcom_version version)
 {
     std::array<T, 3> arr;
     if (json.array_items().size() != 3) {
@@ -224,7 +224,7 @@ std::array<T, 3> build_array(const Json& json)
 
 
 
-property_ptr build_int_property(const Json& json)
+property_ptr build_int_property(const Json& json, [[maybe_unused]] xcom_version version)
 {
     std::string err;
     Json::shape shape = {
@@ -240,7 +240,7 @@ property_ptr build_int_property(const Json& json)
         json["value"].int_value());
 }
 
-property_ptr build_float_property(const Json& json)
+property_ptr build_float_property(const Json& json, [[maybe_unused]] xcom_version version)
 {
     std::string err;
     Json::shape shape = {
@@ -256,7 +256,7 @@ property_ptr build_float_property(const Json& json)
             static_cast<float>(json["value"].number_value()));
 }
 
-property_ptr build_bool_property(const Json& json)
+property_ptr build_bool_property(const Json& json, [[maybe_unused]] xcom_version version)
 {
     std::string err;
     Json::shape shape = {
@@ -272,7 +272,7 @@ property_ptr build_bool_property(const Json& json)
         json["value"].bool_value());
 }
 
-property_ptr build_string_property(const Json& json)
+property_ptr build_string_property(const Json& json, xcom_version version)
 {
     std::string err;
     Json::shape shape = {
@@ -284,10 +284,10 @@ property_ptr build_string_property(const Json& json)
         throw json_shape_exception("string property", err);
     }
     return std::make_unique<string_property>(json["name"].string_value(),
-        build_unicode_string(json["value"]));
+        build_unicode_string(json["value"], version));
 }
 
-property_ptr build_name_property(const Json& json)
+property_ptr build_name_property(const Json& json, [[maybe_unused]] xcom_version version)
 {
     std::string err;
     Json::shape shape = {
@@ -304,7 +304,7 @@ property_ptr build_name_property(const Json& json)
         json["string"].string_value(), json["number"].int_value());
 }
 
-property_ptr build_object_property(const Json& json)
+property_ptr build_object_property(const Json& json, xcom_version version)
 {
     std::string err;
     Json::shape shape = {
@@ -315,12 +315,19 @@ property_ptr build_object_property(const Json& json)
     if (!json.has_shape(shape, err)) {
         throw json_shape_exception("object property", err);
     }
-
-    return std::make_unique<object_property>(json["name"].string_value(), 
-        json["actor"].int_value());
+    if (version == xcom_version::enemy_unknown)
+    {
+        return std::make_unique<object_property_EU>(json["name"].string_value(),
+            json["actor"].int_value());
+    }
+    else
+    {
+        return std::make_unique<object_property>(json["name"].string_value(),
+            json["actor"].int_value());
+    }
 }
 
-property_ptr build_enum_property(const Json& json)
+property_ptr build_enum_property(const Json& json, [[maybe_unused]] xcom_version version)
 {
     std::string err;
     Json::shape shape = {
@@ -339,7 +346,7 @@ property_ptr build_enum_property(const Json& json)
         json["number"].int_value());
 }
 
-property_ptr build_struct_property(const Json& json)
+property_ptr build_struct_property(const Json& json, xcom_version version)
 {
     std::string err;
     Json::shape shape = {
@@ -362,29 +369,29 @@ property_ptr build_struct_property(const Json& json)
             json["struct_name"].string_value(), std::move(data), data_len);
     }
     else {
-        property_list props = build_property_list(json["properties"]);
+        property_list props = build_property_list(json["properties"], version);
         return std::make_unique<struct_property>(json["name"].string_value(), 
             json["struct_name"].string_value(), std::move(props));
     }
 }
 
-property_ptr build_array_property(const Json& json)
+property_ptr build_array_property(const Json& json, xcom_version version)
 {
     // Handle array sub-types
     if (json["actors"] != Json()) {
-        return build_object_array_property(json);
+        return build_object_array_property(json, version);
     }
     else if (json["elements"] != Json()) {
-        return build_number_array_property(json);
+        return build_number_array_property(json, version);
     }
     else if (json["structs"] != Json()) {
-        return build_struct_array_property(json);
+        return build_struct_array_property(json, version);
     }
     else if (json["strings"] != Json()) {
-        return build_string_array_property(json);
+        return build_string_array_property(json, version);
     }
     else if (json["enum_values"] != Json()) {
-        return build_enum_array_property(json);
+        return build_enum_array_property(json, version);
     }
 
     std::string err;
@@ -411,7 +418,7 @@ property_ptr build_array_property(const Json& json)
         json["data_length"].int_value(), json["array_bound"].int_value());
 }
 
-property_ptr build_object_array_property(const Json& json)
+property_ptr build_object_array_property(const Json& json, [[maybe_unused]] xcom_version version)
 {
     std::string err;
     Json::shape shape = {
@@ -432,7 +439,7 @@ property_ptr build_object_array_property(const Json& json)
     return std::make_unique<object_array_property>(json["name"].string_value(), std::move(elements));
 }
 
-property_ptr build_number_array_property(const Json& json)
+property_ptr build_number_array_property(const Json& json, [[maybe_unused]] xcom_version version)
 {
     std::string err;
     Json::shape shape = {
@@ -453,7 +460,7 @@ property_ptr build_number_array_property(const Json& json)
     return std::make_unique<number_array_property>(json["name"].string_value(), std::move(elements));
 }
 
-property_ptr build_string_array_property(const Json& json)
+property_ptr build_string_array_property(const Json& json, xcom_version version)
 {
     std::string err;
     Json::shape shape = {
@@ -468,13 +475,13 @@ property_ptr build_string_array_property(const Json& json)
     std::vector<xcom_string> elements;
 
     for (const Json& elem : json["strings"].array_items()) {
-        elements.push_back(build_unicode_string(elem));
+        elements.push_back(build_unicode_string(elem, version));
     }
 
     return std::make_unique<string_array_property>(json["name"].string_value(), std::move(elements));
 }
 
-property_ptr build_enum_array_property(const Json& json)
+property_ptr build_enum_array_property(const Json& json, [[maybe_unused]] xcom_version version)
 {
     std::string err;
     Json::shape shape = {
@@ -497,7 +504,7 @@ property_ptr build_enum_array_property(const Json& json)
     return std::make_unique<enum_array_property>(json["name"].string_value(), std::move(elements));
 }
 
-property_ptr build_struct_array_property(const Json& json)
+property_ptr build_struct_array_property(const Json& json, xcom_version version)
 {
     std::string err;
 
@@ -513,14 +520,14 @@ property_ptr build_struct_array_property(const Json& json)
     std::vector<property_list> elements;
 
     for (const Json& elem : json["structs"].array_items()) {
-        elements.push_back(build_property_list(elem));
+        elements.push_back(build_property_list(elem, version));
     }
 
     return std::make_unique<struct_array_property>(json["name"].string_value(), 
         std::move(elements));
 }
 
-property_ptr build_static_array_property(const Json& json)
+property_ptr build_static_array_property(const Json& json, xcom_version version)
 {
     std::string err;
     Json::shape shape = {
@@ -553,18 +560,18 @@ property_ptr build_static_array_property(const Json& json)
     else
     {
         for (const Json& elem : json["properties"].array_items()) {
-            static_array->properties.push_back(build_property(elem));
+            static_array->properties.push_back(build_property(elem, version));
         }
     }
     return property_ptr{ static_array.release() };
 }
 
-property_ptr build_property(const Json& json)
+property_ptr build_property(const Json& json, xcom_version version)
 {
     std::string kind = json["kind"].string_value();
     for (const property_dispatch &dispatch : dispatch_table) {
         if (dispatch.name.compare(kind) == 0) {
-            return dispatch.func(json);
+            return dispatch.func(json, version);
         }
     }
 
@@ -573,17 +580,17 @@ property_ptr build_property(const Json& json)
     throw xcom::error::general_exception(err);
 }
 
-property_list build_property_list(const Json& json)
+property_list build_property_list(const Json& json, xcom_version version)
 {
     property_list props;
     for (const Json& elem : json.array_items()) {
-        props.push_back(build_property(elem));
+        props.push_back(build_property(elem, version));
     }
 
     return props;
 }
 
-checkpoint build_checkpoint(const Json& json)
+checkpoint build_checkpoint(const Json& json, xcom_version version)
 {
     checkpoint chk;
     std::string err;
@@ -604,25 +611,25 @@ checkpoint build_checkpoint(const Json& json)
 
     chk.name = json["name"].string_value();
     chk.instance_name = json["instance_name"].string_value();
-    chk.vector = build_array<float>(json["vector"]);
-    chk.rotator = build_array<int>(json["rotator"]);
+    chk.vector = build_array<float>(json["vector"], version);
+    chk.rotator = build_array<int>(json["rotator"], version);
     chk.class_name = json["class_name"].string_value();
-    chk.properties = build_property_list(json["properties"]);
+    chk.properties = build_property_list(json["properties"], version);
     chk.template_index = json["template_index"].int_value();
     chk.pad_size = json["pad_size"].int_value();
     return chk;
 }
 
-checkpoint_table build_checkpoint_table(const Json& json)
+checkpoint_table build_checkpoint_table(const Json& json, xcom_version version)
 {
     checkpoint_table table;
     for (const Json& elem : json.array_items()) {
-        table.push_back(build_checkpoint(elem));
+        table.push_back(build_checkpoint(elem, version));
     }
     return table;
 }
 
-checkpoint_chunk build_checkpoint_chunk(const Json& json)
+checkpoint_chunk build_checkpoint_chunk(const Json& json, xcom_version version)
 {
     checkpoint_chunk chunk;
     std::string err;
@@ -645,7 +652,7 @@ checkpoint_chunk build_checkpoint_chunk(const Json& json)
 
     chunk.unknown_int1 = json["unknown_int1"].int_value();
     chunk.game_type = json["game_type"].string_value();
-    chunk.checkpoints = build_checkpoint_table(json["checkpoint_table"]);
+    chunk.checkpoints = build_checkpoint_table(json["checkpoint_table"], version);
     chunk.unknown_int2 = json["unknown_int2"].int_value();
     chunk.class_name = json["class_name"].string_value();
     chunk.actors = build_actor_table(json["actor_table"]);
@@ -656,11 +663,11 @@ checkpoint_chunk build_checkpoint_chunk(const Json& json)
     return chunk;
 }
 
-checkpoint_chunk_table build_checkpoint_chunk_table(const Json& json)
+checkpoint_chunk_table build_checkpoint_chunk_table(const Json& json, xcom_version version)
 {
     checkpoint_chunk_table table;
     for (const Json& elem : json.array_items()) {
-        table.push_back(build_checkpoint_chunk(elem));
+        table.push_back(build_checkpoint_chunk(elem, version));
     }
     return table;
 }
@@ -681,7 +688,7 @@ saved_game build_save(const Json& json)
 
     save.hdr = build_header(json["header"]);
     save.actors = build_actor_table(json["actor_table"]);
-    save.checkpoints = build_checkpoint_chunk_table(json["checkpoints"]);
+    save.checkpoints = build_checkpoint_chunk_table(json["checkpoints"], save.hdr.version);
     return save;
 }
 
