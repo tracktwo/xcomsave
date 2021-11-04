@@ -18,32 +18,44 @@ Most of the items (Weapons, Alloys etc.) are located in an array called **m_arrI
 
 |Element Number|Description|
 |----|----|
+
+|134|Defense Matrix (Dodge)|
+|135|UFO Tracking (Boost)|
+|136|Uplink Targeting (Aim)|
+|137|UNDEFINED|
+|138|UNDEFINED|
+|139|UNDEFINED|
+|140|UNDEFINED|
+|141|UNDEFINED|
+|142|UNDEFINED|
+|143|UNDEFINED|
+|144|UNDEFINED|
 |145|Sectoid Corpse|
 |146|Sectoid Commander Corpse|
 |147|Floater Corpse|
 |149|Thin Man Corpse|
 |150|Muton Corpse|
-|151|?|
+|151|Muton Elite Corpse|
 |152|Berserker Corpse|
 |153|Cyberdisc Wreck|
-|154|?|
+|154|Ethereal Corpse|
 |155|Chryssalid Corpse|
-|156|?|
-|157|?|
+|156|UNDEFINED|
+|157|Sectopod Wreck|
 |158|Drone Wreck|
-|159|?|
-|160|?|
-|161|?|
-|162|?|
-|163|?|
-|164|?|
-|165|?|
-|166|?|
-|167|?|
-|168|?|
-|169|?|
-|170|?|
-|171|?|
+|159|UNDEFINED|
+|160|UNDEFINED|
+|161|UNDEFINED|
+|162|UNDEFINED|
+|163|UNDEFINED|
+|164|UNDEFINED|
+|165|UNDEFINED|
+|166|UNDEFINED|
+|167|UNDEFINED|
+|168|UNDEFINED|
+|169|UNDEFINED|
+|170|UNDEFINED|
+|171|UNDEFINED|
 |172|Elerium|
 |173|Alien Alloys|
 |174|Weapon Fragments|
@@ -53,15 +65,20 @@ Most of the items (Weapons, Alloys etc.) are located in an array called **m_arrI
 |178|UFO Flight Computer|
 |179|Alien Surgery|
 |180|UFO Power Source|
-|181|?|
-|182|?|
-|183|Alien Food (damaged)|
-|184|?|
-|185|?|
-|186|?|
-|187|?|
-|188|?|
+|181|Hyperwave Beacon|
+|182|Alien Entertainment (Damaged)|
+|183|Alien Food (Damaged)|
+|184|Alien Stasis Tank (Damaged)|
+|185|UFO Flight Computer (Damaged)|
+|186|Alien Surgery (Damaged)|
+|187|UFO Power Source (Damaged)|
+|188|Hyperwave Beacon (Damaged)|
 |189|Fusion Core|
+|190|Ethereal Device|
+|191|UNDEFINED|
+|192|Outsider Shard|
+|193|Skeleton Key|
+|194|UNDEFINED|
 
 # Meld 
 
