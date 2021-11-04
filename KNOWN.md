@@ -18,17 +18,28 @@ Most of the items (Weapons, Alloys etc.) are located in an array called **m_arrI
 
 |Element Number|Description|
 |----|----|
+|100|Battle Scanner|
+|101|?|
+|102|?|
+|103|S.H.I.V.|
+|104|Alloy S.H.I.V.|
+|105|Hover S.H.I.V.|
+|106|UNDEFINED|
+|107|Firestorm|
+|108|UNDEFINED|
+|109|Satellite|
+|110-123|UNDEFINED|
+|124|Phoenix Cannon|
+|125|UNDEFINED|
+|126|Laser Cannon|
+|127|Plasma Cannon|
+|128|EMP Cannon|
+|129|Fusion Lance|
+|130-133|UNDEFINED|
 |134|Defense Matrix (Dodge)|
 |135|UFO Tracking (Boost)|
 |136|Uplink Targeting (Aim)|
-|137|UNDEFINED|
-|138|UNDEFINED|
-|139|UNDEFINED|
-|140|UNDEFINED|
-|141|UNDEFINED|
-|142|UNDEFINED|
-|143|UNDEFINED|
-|144|UNDEFINED|
+|137-144|UNDEFINED|
 |145|Sectoid Corpse|
 |146|Sectoid Commander Corpse|
 |147|Floater Corpse|
@@ -42,19 +53,7 @@ Most of the items (Weapons, Alloys etc.) are located in an array called **m_arrI
 |156|UNDEFINED|
 |157|Sectopod Wreck|
 |158|Drone Wreck|
-|159|UNDEFINED|
-|160|UNDEFINED|
-|161|UNDEFINED|
-|162|UNDEFINED|
-|163|UNDEFINED|
-|164|UNDEFINED|
-|165|UNDEFINED|
-|166|UNDEFINED|
-|167|UNDEFINED|
-|168|UNDEFINED|
-|169|UNDEFINED|
-|170|UNDEFINED|
-|171|UNDEFINED|
+|159-171|UNDEFINED|
 |172|Elerium|
 |173|Alien Alloys|
 |174|Weapon Fragments|
