@@ -18,7 +18,6 @@ Most of the items (Weapons, Alloys etc.) are located in an array called **m_arrI
 
 |Element Number|Description|
 |----|----|
-
 |134|Defense Matrix (Dodge)|
 |135|UFO Tracking (Boost)|
 |136|Uplink Targeting (Aim)|
