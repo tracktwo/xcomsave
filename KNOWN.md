@@ -2,15 +2,15 @@ This is a list of known strings in the savegame file.
 
 # Funds
 
-Look for the line containing `"name": "m_iCash", "kind": "IntProperty",` and change `"value":` to the desired amount of money.
+Look for the line containing `"name": "m_iCash", "kind": "IntProperty",` and change the number after `"value":` to the desired amount of money.
 
 # Scientists
 
-Look for the line containing `"name": "m_iNumScientists", "kind": "IntProperty",` and change `"value":` to the desired number of scientists.
+Look for the line containing `"name": "m_iNumScientists", "kind": "IntProperty",` and change the number after `"value":` to the desired number of scientists.
 
 # Engineers
 
-Look for the line containing `"name": "m_iNumEngineers", "kind": "IntProperty",` and change `"value":` to the desired number of engineers.
+Look for the line containing `"name": "m_iNumEngineers", "kind": "IntProperty",` and change the number after `"value":` to the desired number of engineers.
 
 # Items
 
@@ -66,7 +66,7 @@ Most of the items (Weapons, Alloys etc.) are located in an array called **m_arrI
 # Meld 
 
 Meld is located in an array after `Meld "Command1.TheWorld:PersistentLevel.XGBattleDesc_0"`. 
-Please note that this array hold the amount you found since the beginning of the game and not your current amount. 
+Please note that this array stores the amount you found since the beginning of the game and not your current amount. 
 
 # Team Members
 
