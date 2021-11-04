@@ -18,6 +18,23 @@ Most of the items (Weapons, Alloys etc.) are located in an array called **m_arrI
 
 |Element Number|Description|
 |----|----|
+|59|Carapace Armor|
+|60|Skeleton Suit|
+|61|Titan Armor|
+|62|Archangel Armor|
+|63|Ghost Armor|
+|64|Psi Armor|
+|65-76|UNDEFINED|
+|77|Medikit|
+|78|Combat Stims|
+|79|Mind Shield|
+|80|Chitin Plating|
+|81|Arc Thrower|
+|82|S.C.O.P.E.|
+|83|Nano-Fiber Vest|
+|84-88|UNDEFINED|
+|89|Alien Grenade|
+|90-99|UNDEFINED|
 |100|Battle Scanner|
 |101|?|
 |102|?|
