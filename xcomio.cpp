@@ -25,6 +25,7 @@ xcomio.cpp - Low-level operations on an xcom io buffer.
 #include "xcomio.h"
 
 #include <cstring>
+#include <limits>
 
 namespace xcom
 {

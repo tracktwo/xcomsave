@@ -88,7 +88,7 @@ static property_dispatch dispatch_table[] = {
     { "StaticArrayProperty", build_static_array_property }
 };
 
-xcom_string build_unicode_string(const Json& json, xcom_version version)
+xcom_string build_unicode_string(const Json& json, [[maybe_unused]] xcom_version version)
 {
     Json::shape shape = {
         { "str", Json::STRING },

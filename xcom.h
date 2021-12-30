@@ -197,7 +197,7 @@ namespace xcom
         };
 
         property(const std::string &n, kind_t k) : name(n), kind(k) {}
-
+        virtual ~property() = default;
         std::string kind_string() const;
         virtual int32_t size() const = 0;
         virtual int32_t full_size() const;
@@ -812,9 +812,9 @@ namespace xcom
 
             virtual std::string what() const noexcept;
         private:
-            uint32_t expected_; // the expected CRC from the save
-            uint32_t actual_; // computed CRC
-            bool is_header_crc_; // header (true) or payload (false) CRC
+            [[maybe_unused]] uint32_t expected_; // the expected CRC from the save
+            [[maybe_unused]] uint32_t actual_; // computed CRC
+            [[maybe_unused]] bool is_header_crc_; // header (true) or payload (false) CRC
         };
 
         // An exception reading or writing the file
