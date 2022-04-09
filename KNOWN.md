@@ -18,6 +18,20 @@ Most of the items (Weapons, Alloys etc.) are located in an array called **m_arrI
 
 |Element Number|Description|
 |----|----|
+|1-8|UNDEFINED|
+|9|Laser Pistol|
+|10|Laser Rifle|
+|11|Scatter Laser|
+|12|Heavy Laser|
+|13|Laser Sniper Rifle|
+|14|Plasma Pistol|
+|15|Light Plasma Rifle|
+|16|Plasma Rifle|
+|17|Alloy Cannon|
+|19|Plasma Sniper Rifle|
+|18|Heavy Plasma|
+|20|Blaster Launcher|
+|21-58|UNDEFINED|
 |59|Carapace Armor|
 |60|Skeleton Suit|
 |61|Titan Armor|
@@ -60,6 +74,7 @@ Most of the items (Weapons, Alloys etc.) are located in an array called **m_arrI
 |145|Sectoid Corpse|
 |146|Sectoid Commander Corpse|
 |147|Floater Corpse|
+|148|Heavy Floater Corpse|
 |149|Thin Man Corpse|
 |150|Muton Corpse|
 |151|Muton Elite Corpse|
