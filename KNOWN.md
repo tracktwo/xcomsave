@@ -110,10 +110,71 @@ Most of the items (Weapons, Alloys etc.) are located in an array called **m_arrI
 |193|Skeleton Key|
 |194|UNDEFINED|
 
+
+The following array elements have been identified in Enemy Within:
+
+|Element Number|Description|
+|----|----|
+|60|Body Armor|
+|61|Carapace Armor|
+|62|Skeleton Suit|
+|63|Titan Armor|
+|64|Archangel Armor|
+|70|Medikit|
+|71|Combat Stims|
+|72|Mind Shield|
+|73|Chitin Plating|
+|74|Arc Thrower|
+|75|S.C.O.P.E.|
+|76|Nano-Fiber Vest|
+|135|Sectoid Corpse|
+|136|Sectoid Commander Corpse|
+|137|Floater Corpse|
+|138|Heavy Floater Corpse|
+|139|Thin Man Corpse|
+|140|Muton Corpse|
+|141|Muton Elite Corpse|
+|142|Berserker Corpse|
+|143|Cyberdisc Wreck|
+|144|Ethereal Corpse|
+|145|Chryssalid Corpse|
+|147|Sectopod Wreck|
+|148|Drone Wreck|
+|162|Elerium|
+|163|Alien Alloys|
+|164|Weapon Fragments|
+|165|Meld|
+|168|Alien Stasis Tank|
+|169|UFO Flight Computer|
+|170|Alien Surgery|
+|171|UFO Power Source|
+|175|Alien Stasis Tank (Damaged)|
+|176|UFO Flight Computer (Damaged)|
+|177|Alien Surgery (Damaged)|
+|178|UFO Power Source (Damaged)|
+|179|Hyperwave Beacon (Damaged)|
+|180|Fusion Core|
+|188|Mechtoid Core|
+|189|Seeker Wreck|
+|193|Base Augmentation|
+|208|M.E.C. 3 Paladin|
+|213|EXALT Assault Rifle|
+|214|EXALT Sniper Rifle|
+|215|EXALT LMG|
+|216|EXALT Laser Assault Rifle|
+|217|EXALT Laser Sniper Rifle|
+|218|EXALT Heavy Laser|
+|219|EXALT Rocket Launcher|
+|223|Recovered Art|
+|224|EXALT Artefacts|
+|225|EXALT Tech|
+
 # Meld 
 
 Meld is located in an array after `Meld "Command1.TheWorld:PersistentLevel.XGBattleDesc_0"`. 
 Please note that this array stores the amount you found since the beginning of the game and not your current amount. 
+
+Current amount of meld is stored in **m_arrItems**.
 
 # Team Members
 
