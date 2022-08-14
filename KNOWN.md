@@ -115,6 +115,12 @@ Most of the items (Weapons, Alloys etc.) are located in an array called **m_arrI
 Meld is located in an array after `Meld "Command1.TheWorld:PersistentLevel.XGBattleDesc_0"`. 
 Please note that this array stores the amount you found since the beginning of the game and not your current amount. 
 
+# Psi Training
+
+Assign some soldiers for Psi Lab training and save. Look for `"class_name": "XComStrategyGame.XGFacility_PsiLabs"` in the savegame. Look for the  `"m_arrTraining"` array just below it. The array contains one entry per trained soldier with two or three items: `kSoldier`, `iHoursLeft` and optionally `bPsiGift`.
+
+You can modify `iHoursLeft` to speed up the training. The outcome of the training is determined at the time you assign the soldiers for training. To make training successful for all soldiers, add a `bPsiGift` item to all entries that don't have it already: `{ "name": "bPsiGift", "kind": "BoolProperty", "value": true }`
+
 # Team Members
 
 TODO
